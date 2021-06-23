@@ -78,9 +78,9 @@ Posterior Differential Regularization with f-divergence for Improving Model Robu
    Please refer to the following link if you first use docker: https://docs.docker.com/
 
 ### 训练一个迷你的MT-DNN
-1. 下载数据 </br>
+1. 下载数据，包括bert模型，roberta模型，MT-DNN模型，GLUE数据集，SciTail，SQuAD，NER数据集 </br>
    ```> sh download.sh``` </br>
-   请参阅下载GLUE数据集 : https://gluebenchmark.com/
+   更多详情，请参阅下载GLUE数据集 : https://gluebenchmark.com/
 
 2. 预处理数据 </br>
    ```> sh experiments/glue/prepro.sh```
