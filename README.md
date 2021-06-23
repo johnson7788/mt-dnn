@@ -2,62 +2,71 @@
 [![Travis-CI](https://travis-ci.org/namisan/mt-dnn.svg?branch=master)](https://github.com/namisan/mt-dnn)
 
 **New Release** <br/>
-We released Adversarial training for both LM pre-training/finetuning and f-divergence.
+我们发布了LM预训练/FineTuning和f-divercence的对抗性训练。
+
 
 Large-scale Adversarial training for LMs: [ALUM code](https://github.com/namisan/mt-dnn/blob/master/alum/README.md). <br/>
-If you want to use the old version, please use following cmd to clone the code: <br/>
+如果你想使用旧版本，请使用以下cmd来克隆代码。<br/>
 ```git clone -b v0.1 https://github.com/namisan/mt-dnn.git ```
 
 
 
-# Multi-Task Deep Neural Networks for Natural Language Understanding
+# 用于自然语言理解的多任务深神经网络
 
-This PyTorch package implements the Multi-Task Deep Neural Networks (MT-DNN) for Natural Language Understanding, as described in:
+这个PyTorch包实现了用于自然语言理解的多任务深度神经网络(MT-DNN)，如图所示。
 
 Xiaodong Liu\*, Pengcheng He\*, Weizhu Chen and Jianfeng Gao<br/>
-Multi-Task Deep Neural Networks for Natural Language Understanding<br/>
+用于自然语言理解的多任务深神经网络，论文 <br/>
+Multi-Task Deep Neural Networks for Natural Language Understanding
 [ACL 2019](https://aclweb.org/anthology/papers/P/P19/P19-1441/) <br/>
 \*: Equal contribution <br/>
 
 Xiaodong Liu, Pengcheng He, Weizhu Chen and Jianfeng Gao<br/>
-Improving Multi-Task Deep Neural Networks via Knowledge Distillation for Natural Language Understanding <br/>
+通过自然语言理解的知识蒸馏改进多任务深度神经网络 <br/>
+Improving Multi-Task Deep Neural Networks via Knowledge Distillation for Natural Language Understanding
 [arXiv version](https://arxiv.org/abs/1904.09482) <br/>
 
 
 Pengcheng He, Xiaodong Liu, Weizhu Chen and Jianfeng Gao<br/>
+Commonsense推理的混合神经网络模型<br/> 
 Hybrid Neural Network Model for Commonsense Reasoning <br/>
 [arXiv version](https://arxiv.org/abs/1907.11983) <br/>
 
 
 Liyuan Liu, Haoming Jiang, Pengcheng He, Weizhu Chen, Xiaodong Liu, Jianfeng Gao and Jiawei Han <br/>
 On the Variance of the Adaptive Learning Rate and Beyond <br/>
+关于自适应学习率及超越的方差<br/>
 [arXiv version](https://arxiv.org/abs/1908.03265) <br/>
 
 Haoming Jiang, Pengcheng He, Weizhu Chen, Xiaodong Liu, Jianfeng Gao and Tuo Zhao <br/>
+SMART: 通过原则的正则化优化对预训练的自然语言模型进行鲁棒和高效的微调 <br/>
 SMART: Robust and Efficient Fine-Tuning for Pre-trained Natural Language Models through Principled Regularized Optimization <br/>
 [arXiv version](https://arxiv.org/abs/1911.03437) <br/>
 
 Xiaodong Liu, Yu Wang, Jianshu Ji, Hao Cheng, Xueyun Zhu, Emmanuel Awa, Pengcheng He, Weizhu Chen, Hoifung Poon, Guihong Cao, Jianfeng Gao<br/>
+用于自然语言理解的微软多任务深度神经网络工具包 <br/>
 The Microsoft Toolkit of Multi-Task Deep Neural Networks for Natural Language Understanding <br/>
 [arXiv version](https://arxiv.org/abs/2002.07972) <br/>
 
 Xiaodong Liu, Hao Cheng, Pengcheng He, Weizhu Chen, Yu Wang, Hoifung Poon and Jianfeng Gao<br/>
+大型神经语言模型的对抗训练<br/> 
 Adversarial Training for Large Neural Language Models <br/>
 [arXiv version](https://arxiv.org/abs/2004.08994) <br/>
 
 Hao Cheng and Xiaodong Liu and Lis Pereira and Yaoliang Yu and Jianfeng Gao<br/>
+改善模型鲁棒性的f-divergence后微分正则化<br/> 
 Posterior Differential Regularization with f-divergence for Improving Model Robustness <br/>
 [arXiv version](https://arxiv.org/abs/2010.12638) <br/>
 
 
 ## Quickstart
 
-### Setup Environment
+### 配置环境
 #### Install via pip:
 1. python3.6 </br>
-   Reference to download and install : https://www.python.org/downloads/release/python-360/
+   安装python3.6 : https://www.python.org/downloads/release/python-360/
 
-2. install requirements </br>
+2. 安装依赖 </br>
    ```> pip install -r requirements.txt```
 
 #### Use docker:
@@ -68,88 +77,87 @@ Posterior Differential Regularization with f-divergence for Improving Model Robu
    ```> docker run -it --rm --runtime nvidia  allenlao/pytorch-mt-dnn:v0.5 bash``` </br>
    Please refer to the following link if you first use docker: https://docs.docker.com/
 
-### Train a toy MT-DNN model
-1. Download data </br>
+### 训练一个迷你的MT-DNN
+1. 下载数据 </br>
    ```> sh download.sh``` </br>
-   Please refer to download GLUE dataset: https://gluebenchmark.com/
+   请参阅下载GLUE数据集 : https://gluebenchmark.com/
 
-2. Preprocess data </br>
+2. 预处理数据 </br>
    ```> sh experiments/glue/prepro.sh```
 
-3. Training </br>
+3. 训练 </br>
    ```> python train.py```
 
-**Note that we ran experiments on 4 V100 GPUs for base MT-DNN models. You may need to reduce batch size for other GPUs.** <br/>
+**请注意，我们在4个V100 GPU上进行了基础MT-DNN模型的实验。你可能需要减少其他GPU的批次大小。** <br/>
 
-### GLUE Result reproduce
-1. MTL refinement: refine MT-DNN (shared layers), initialized with the pre-trained BERT model, via MTL using all GLUE tasks excluding WNLI to learn a new shared representation. </br>
-**Note that we ran this experiment on 8 V100 GPUs (32G) with a batch size of 32.**
-   + Preprocess GLUE data via the aforementioned script
+### GLUE结果重现 
+1. MTL refinement: 改进 MT-DNN（共享层），用预训练好的BERT模型初始化，通过MTL使用所有GLUE任务（不包括WNLI）来学习新的共享表示。
+**请注意，我们在8个V100 GPU（32G）上运行这个实验，批次大小为32。**
+   + 通过上述脚本预处理GLUE数据
    + Training: </br>
    ```>scripts\run_mt_dnn.sh```
 
-2. Finetuning: finetune MT-DNN to each of the GLUE tasks to get task-specific models. </br>
-Here, we provide two examples, STS-B and RTE. You can use similar scripts to finetune all the GLUE tasks. </br>
-   + Finetune on the STS-B task </br>
+2. 微调：根据GLUE的每项任务对MT-DNN进行微调，以获得特定任务的模型。 </br>
+这里，我们提供了两个例子，STS-B和RTE。你可以使用类似的脚本来微调所有的GLUE任务。 </br>
+   + Finetune在STS-B任务上 </br>
    ```> scripts\run_stsb.sh``` </br>
-   You should get about 90.5/90.4 on STS-B dev in terms of Pearson/Spearman correlation. </br>
-   + Finetune on the RTE task  </br>
+   就Pearson/Spearman相关性而言，你应该在STS-B dev上得到大约90.5/90.4。</br>
+   + Finetune在RTE任务上 </br>
    ```> scripts\run_rte.sh``` </br>
-   You should get about 83.8 on RTE dev in terms of accuracy. </br>
+   就准确性而言，你应该在RTE dev上得到约83.8的结果。</br>
 
-### SciTail & SNIL Result reproduce (Domain Adaptation)
-1. Domain Adaptation on SciTail  </br>
+### SCITAIL和SNIL结果重现（域适应） 
+1. SCITAIL上的域适应  </br>
    ```>scripts\scitail_domain_adaptation_bash.sh```
 
-2. Domain Adaptation on SNLI </br>
+2. Snli上的域适应 </br>
   ```>scripts\snli_domain_adaptation_bash.sh```
 
-### Sequence Labeling Task
-1. Preprocess data </br>
-   a) Download NER data to data/ner including: {train/valid/test}.txt </br>
-   b) Convert NER data to the canonical format: ```> python experiments\ner\prepro.py --data data\ner --output_dir data\canonical_data``` </br>
-   c) Preprocess the canonical data to the MT-DNN format: ```> python prepro_std.py --do_lower_case --root_dir data\canonical_data --task_def experiments\ner\ner_task_def.yml --model bert-base-uncased``` </br>
+### 序列标注任务 
+1. 预处理数据 </br>
+   a) 将ner数据下载到data/ner，包括：{train/valid/test}.txt </br>
+   b) 将ner数据转换为规范格式：```> python experiments\ner\prepro.py --data data\ner --output_dir data\canonical_data``` </br>
+   c) 预处理规范数据到MT-DNN格式：```> python prepro_std.py --do_lower_case --root_dir data\canonical_data --task_def experiments\ner\ner_task_def.yml --model bert-base-uncased``` </br>
 
-2. Training </br>
+2. 训练 </br>
    ```> python train.py --data_dir <data-path> --init_checkpoint <bert/ner-model> --train_dataset ner --test_dataset ner --task_def experiments\ner\ner_task_def.yml```
 
 ### SMART
-Adv training at the fine-tuning stages:
+在微调阶段的对抗训练：:
    ```> python train.py --data_dir <data-path> --init_checkpoint <bert/mt-dnn-model> --train_dataset mnli --test_dataset mnli_matched,mnli_mismatched --task_def experiments\glue\glue_task_def.yml --adv_train --adv_opt 1```
 
 
 ### HNN
-The code to reproduce HNN is under `hnn` folder, to reproduce the results of HNN, run 
-
+重现HNN的代码在`hnn`文件夹下，要重现HNN的结果，运行
 ```> hnn/script/hnn_train_large.sh```
 
 
 ### Extract embeddings
-1. Extracting embeddings of a pair text example </br>
+1. 提取对文本样本的嵌入 </br>
    ```>python extractor.py --do_lower_case --finput input_examples\pair-input.txt --foutput input_examples\pair-output.json --bert_model bert-base-uncased --checkpoint mt_dnn_models\mt_dnn_base.pt``` </br>
-   Note that the pair of text is split by a special token ```|||```. You may refer ``` input_examples\pair-output.json``` as example. </br>
+   请注意，这对文本是由一个特殊的token分割的 ```|||```. You may refer ``` input_examples\pair-output.json``` as example. </br>
 
-2. Extracting embeddings of a single sentence example </br>
+2. 提取单个句子样本的嵌入 </br>
    ```>python extractor.py  --do_lower_case --finput input_examples\single-input.txt --foutput input_examples\single-output.json --bert_model bert-base-uncased --checkpoint mt_dnn_models\mt_dnn_base.pt``` </br>
 
 
-### Speed up Training
-1. Gradient Accumulation </br>
-   If you have small GPUs, you may need to use the gradient accumulation to make training stable. </br>
-   For example, if you use the flag: ```--grad_accumulation_step 4 ``` during the training, the actual batch size will be ``` batch_size * 4 ```. </br>
+### 加速训练
+1. 梯度累积Gradient Accumulation </br>
+   如果你有小的GPU，你可能需要使用梯度累加来使训练稳定。 </br>
+   例如，如果你在训练过程中使用标志：```--grad_accumulation_step 4 ```，那么实际的批次大小将是``` batch_size * 4 ```。</br>
 
 2. FP16
-   The current version of MT-DNN also supports FP16 training, and please install apex. </br>
-   You just need to turn on the flag during the training: ```--fp16 ```  </br>
+   当前版本的MT-DNN也支持FP16训练，请安装apex。</br>
+   您只需要在训练期间使用 ```--fp16 ```  </br>
 Please refer the script: ``` scripts\run_mt_dnn_gc_fp16.sh```
 
 
 
-### Convert Tensorflow BERT model to the MT-DNN format
-Here, we go through how to convert a Chinese Tensorflow BERT model into mt-dnn format. <br/>
-1. Download BERT model from the Google bert web: https://github.com/google-research/bert <br/>
+### 将Tensorflow Bert模型转换为MT-DNN格式
+在这里，我们将通过如何将一个中文的Tensorflow BERT模型转换为mt-dnn格式。<br/>
+1. 从Google Bert Web下载Bert Model：https://github.com/google-research/bert <br/>
 
-2. Run the following script for MT-DNN format</br>
+2. 为MT-DNN格式运行以下脚本 </br>
    ```python scripts\convert_tf_to_pt.py --tf_checkpoint_root chinese_L-12_H-768_A-12\ --pytorch_checkpoint_path chinese_L-12_H-768_A-12\bert_base_chinese.pt```
 
 ### TODO
@@ -158,23 +166,22 @@ Here, we go through how to convert a Chinese Tensorflow BERT model into mt-dnn f
 
 ## FAQ
 
-### Did you share the pretrained mt-dnn models?
-Yes, we released the pretrained shared embedings via MTL which are aligned to BERT base/large models: ```mt_dnn_base.pt``` and ```mt_dnn_large.pt```. </br>
-To obtain the similar models:
-1. run the ```>sh scripts\run_mt_dnn.sh```, and then pick the best checkpoint based on the average dev preformance of MNLI/RTE. </br>
-2. strip the task-specific layers via ```scritps\strip_model.py```. </br>
+### 您是否分享了预训练的MT-DNN模型？ 
+是的，我们通过MTL发布了预训练的共享嵌入，这些嵌入与BERT基础/大型模型一致。``mt_dnn_base.pt``和``mt_dnn_large.pt``。</br>
+获取类似模型： 
+1. 运行 ```>sh scripts\run_mt_dnn.sh```, 然后根据MNLI/RTE的平均开发性能挑选最佳checkpoint。 </br>
+2. 通过剥离特定任务的层 ```scritps\strip_model.py```. </br>
 
-### Why SciTail/SNLI do not enable SAN?
-For SciTail/SNLI tasks, the purpose is to test generalization of the learned embedding and how easy it is adapted to a new domain instead of complicated model structures for a direct comparison with BERT. Thus, we use a linear projection on the all **domain adaptation** settings.
+### 为什么SCITAIL/SNLI不启用SAN网络
+对于SciTail/SNLI任务，目的是测试学到的嵌入的通用性，以及它是如何容易适应新的领域，而不是复杂的模型结构，以便与BERT直接比较。因此，我们在所有的**域适应**设置上使用线性投影。
 
-### What is the difference between V1 and V2
-The difference is in the QNLI dataset. Please refere to the GLUE official homepage for more details. If you want to formulate QNLI as pair-wise ranking task as our paper, make sure that you use the old QNLI data. </br>
-Then run the prepro script with flags:   ```> sh experiments/glue/prepro.sh --old_glue``` </br>
-If you have issues to access the old version of the data, please contact the GLUE team.
+### V1和V2之间有什么区别
+区别在于QNLI数据集。更多细节请参考GLUE官方主页。如果你想像我们的论文一样将QNLI作为pair-wise排名任务，请确保你使用旧的QNLI数据。</br>
+然后使用flag运行prepro脚本：   ```> sh experiments/glue/prepro.sh --old_glue``` </br>
+如果您在访问旧版数据时遇到问题，请联系GLUE团队。
 
-### Did you fine-tune single task for your GLUE leaderboard submission? 
-We can use the multi-task refinement model to run the prediction and produce a reasonable result. But to achieve a better result, it requires a fine-tuneing on each task. It is worthing noting the paper in arxiv is a littled out-dated and on the old GLUE dataset. We will update the paper as we mentioned below. 
-
+### 您是否为您的GLUE排行榜提交进行了微调单次任务？
+我们可以使用多任务细化模型来运行预测并产生一个合理的结果。但要达到一个更好的结果，需要对每个任务进行微调。值得注意的是，arxiv中的论文已经有点过时了，而且是在旧的GLUE数据集上。我们将按下文所述更新该论文。
 
 ## Notes and Acknowledgments
 BERT pytorch is from: https://github.com/huggingface/pytorch-pretrained-BERT <br/>
