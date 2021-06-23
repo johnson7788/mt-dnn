@@ -79,8 +79,89 @@ Posterior Differential Regularization with f-divergence for Improving Model Robu
 
 ### 训练一个迷你的MT-DNN
 1. 下载数据，包括bert模型，roberta模型，MT-DNN模型，GLUE数据集，SciTail，SQuAD，NER数据集 </br>
-   ```> sh download.sh``` </br>
+   ```> sh download.sh all``` </br>
    更多详情，请参阅下载GLUE数据集 : https://gluebenchmark.com/
+```buildoutcfg
+# mt_dnn_models下的内容
+tree mt_dnn_models/
+mt_dnn_models/
+├── bert_model_base_chinese.pt
+├── bert_model_base_uncased.pt
+├── bert_model_large_uncased.pt
+├── mt_dnn_base_uncased.pt
+├── mt_dnn_kd_large_cased.pt
+├── mt_dnn_large_uncased.pt
+├── roberta
+│   ├── encoder.json
+│   ├── ict.txt
+│   └── vocab.bpe
+├── roberta.base
+│   ├── NOTE
+│   ├── dict.txt
+│   └── model.pt
+└── roberta.large
+    ├── NOTE
+    ├── dict.txt
+    └── model.pt
+
+3 directories, 15 files
+
+data下的目录内容
+#tree data
+data
+├── SciTail
+│   ├── README.txt
+│   ├── all_annotations.tsv
+│   ├── dgem_format
+│   │   ├── README.txt
+│   │   ├── scitail_1.0_structure_dev.tsv
+│   │   ├── scitail_1.0_structure_test.tsv
+│   │   └── scitail_1.0_structure_train.tsv
+│   ├── predictor_format
+│   │   ├── README.txt
+│   │   ├── scitail_1.0_structure_dev.jsonl
+│   │   ├── scitail_1.0_structure_test.jsonl
+│   │   └── scitail_1.0_structure_train.jsonl
+│   ├── snli_format
+│   │   ├── README.txt
+│   │   ├── scitail_1.0_dev.txt
+│   │   ├── scitail_1.0_test.txt
+│   │   └── scitail_1.0_train.txt
+│   └── tsv_format
+│       ├── scitail_1.0_dev.tsv
+│       ├── scitail_1.0_test.tsv
+│       └── scitail_1.0_train.tsv
+├── domain_adaptation
+│   ├── scitail_001_train.json
+│   ├── scitail_01_train.json
+│   ├── scitail_1_train.json
+│   ├── scitail_5_train.json
+│   ├── scitail_dev.json
+│   ├── scitail_test.json
+│   ├── scitail_train.json
+│   ├── scitail_train_shuff.json
+│   ├── snli_001_train.json
+│   ├── snli_01_train.json
+│   ├── snli_1_train.json
+│   ├── snli_5_train.json
+│   ├── snli_dev.json
+│   ├── snli_test.json
+│   ├── snli_train.json
+│   └── snli_train_shuff.json
+├── ner
+│   ├── test.txt
+│   ├── train.txt
+│   └── valid.txt
+├── squad
+│   ├── dev.json
+│   └── train.json
+└── squad_v2
+    ├── dev.json
+    └── train.json
+
+9 directories, 40 files
+
+```
 
 2. 预处理数据 </br>
    ```> sh experiments/glue/prepro.sh```

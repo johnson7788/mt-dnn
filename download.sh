@@ -49,7 +49,7 @@ fi
 
 ## DOWNLOAD GLUE DATA
 ## Please refer glue-baseline install requirments or other issues.
-git clone https://github.com/nyu-mll/jiant-v1-legacy.git
+git clone --depth 1 https://github.com/nyu-mll/jiant-v1-legacy.git
 cd jiant-v1-legacy
 python scripts/download_glue_data.py --data_dir $DATA_DIR --tasks all
 
