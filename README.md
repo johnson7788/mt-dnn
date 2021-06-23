@@ -108,7 +108,90 @@ mt_dnn_models/
 
 data下的目录内容
 #tree data
-data
+.
+├── CoLA
+│   ├── dev.tsv
+│   ├── original
+│   │   ├── raw
+│   │   │   ├── in_domain_dev.tsv
+│   │   │   ├── in_domain_train.tsv
+│   │   │   └── out_of_domain_dev.tsv
+│   │   └── tokenized
+│   │       ├── in_domain_dev.tsv
+│   │       ├── in_domain_train.tsv
+│   │       └── out_of_domain_dev.tsv
+│   ├── test.tsv
+│   └── train.tsv
+├── MNLI
+│   ├── README.txt
+│   ├── dev_matched.tsv
+│   ├── dev_mismatched.tsv
+│   ├── diagnostic-full.tsv
+│   ├── diagnostic.tsv
+│   ├── original
+│   │   ├── multinli_1.0_dev_matched.jsonl
+│   │   ├── multinli_1.0_dev_matched.txt
+│   │   ├── multinli_1.0_dev_mismatched.jsonl
+│   │   ├── multinli_1.0_dev_mismatched.txt
+│   │   ├── multinli_1.0_train.jsonl
+│   │   └── multinli_1.0_train.txt
+│   ├── test_matched.tsv
+│   ├── test_mismatched.tsv
+│   └── train.tsv
+├── MRPC
+│   ├── dev.tsv
+│   ├── dev_ids.tsv
+│   ├── msr_paraphrase_test.txt
+│   ├── msr_paraphrase_train.txt
+│   ├── test.tsv
+│   └── train.tsv
+├── QNLI
+│   ├── dev.tsv
+│   ├── test.tsv
+│   └── train.tsv
+├── QQP
+│   ├── dev.tsv
+│   ├── test.tsv
+│   └── train.tsv
+├── RTE
+│   ├── dev.tsv
+│   ├── test.tsv
+│   └── train.tsv
+├── SNLI
+│   ├── README.txt
+│   ├── dev.jsonl
+│   ├── dev.tsv
+│   ├── original
+│   │   ├── snli_1.0_dev.txt
+│   │   ├── snli_1.0_test.txt
+│   │   └── snli_1.0_train.txt
+│   ├── test.jsonl
+│   ├── test.tsv
+│   ├── train.jsonl
+│   └── train.tsv
+├── SST-2
+│   ├── dev.tsv
+│   ├── original
+│   │   ├── README.txt
+│   │   ├── SOStr.txt
+│   │   ├── STree.txt
+│   │   ├── datasetSentences.txt
+│   │   ├── datasetSplit.txt
+│   │   ├── dictionary.txt
+│   │   ├── original_rt_snippets.txt
+│   │   └── sentiment_labels.txt
+│   ├── test.tsv
+│   └── train.tsv
+├── STS-B
+│   ├── LICENSE.txt
+│   ├── dev.tsv
+│   ├── original
+│   │   ├── sts-dev.tsv
+│   │   ├── sts-test.tsv
+│   │   └── sts-train.tsv
+│   ├── readme.txt
+│   ├── test.tsv
+│   └── train.tsv
 ├── SciTail
 │   ├── README.txt
 │   ├── all_annotations.tsv
@@ -131,6 +214,10 @@ data
 │       ├── scitail_1.0_dev.tsv
 │       ├── scitail_1.0_test.tsv
 │       └── scitail_1.0_train.tsv
+├── WNLI
+│   ├── dev.tsv
+│   ├── test.tsv
+│   └── train.tsv
 ├── domain_adaptation
 │   ├── scitail_001_train.json
 │   ├── scitail_01_train.json
@@ -159,12 +246,16 @@ data
     ├── dev.json
     └── train.json
 
-9 directories, 40 files
-
+26 directories, 110 files
 ```
 
 2. 预处理数据 </br>
-   ```> sh experiments/glue/prepro.sh```
+```
+#规范化数据，即数据预处理, 保存到 /data/canonical_data目录下, ls canonical_data/ | wc -l #共有处理好的数据35个
+python experiments/glue/glue_prepro.py   
+# 数据预处理tokenizer化，保存到对应数据下的对应模型下，如下，会保存到data/canonical_data/bert-large-uncased/目录下，格式为json文件，包含uid，label，和token_id, type_id, attention_mask
+python prepro_std.py --model bert-large-uncased --root_dir data/canonical_data --task_def experiments/glue/glue_task_def.yml --do_lower_case
+```
 
 3. 训练 </br>
    ```> python train.py```
