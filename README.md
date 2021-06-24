@@ -259,8 +259,8 @@ python prepro_std.py --model bert-large-uncased --root_dir data/canonical_data -
 ls mt-dnn/data/canonical_data/bert-large-uncased/ | wc -l
 ```
 
-3. 训练 </br>
-   ```> python train.py```
+3. 训练模型 </br>
+   ```> python train.py --data_dir data/canonical_data/bert-large-uncased```
 
 **请注意，我们在4个V100 GPU上进行了基础MT-DNN模型的实验。你可能需要减少其他GPU的批次大小。** <br/>
 

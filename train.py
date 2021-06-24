@@ -97,7 +97,7 @@ def train_config(parser):
                         help='是否使用GPU')
     parser.add_argument('--log_per_updates', type=int, default=500)
     parser.add_argument('--save_per_updates', type=int, default=10000)
-    parser.add_argument('--save_per_updates_on', action='store_true')
+    parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁')
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=8, help='训练的batch_size')
     parser.add_argument('--batch_size_eval', type=int, default=8)
@@ -183,7 +183,7 @@ def dump(path, data):
 
 def evaluation(model, datasets, data_list, task_defs, output_dir='checkpoints', epoch=0, n_updates=-1, with_label=False, tensorboard=None, glue_format_on=False, test_on=False, device=None, logger=None):
     # eval on rank 1
-    print_message(logger, "Evaluation")
+    print_message(logger, "开始评估")
     test_prefix = "Test" if test_on else "Dev"
     if n_updates > 0:
         updates_str = "updates"
@@ -208,9 +208,9 @@ def evaluation(model, datasets, data_list, task_defs, output_dir='checkpoints', 
                 if tensorboard:
                     tensorboard.add_scalar('{}/{}/{}'.format(test_prefix, dataset, key), val, global_step=updates)
                 if isinstance(val, str):
-                    print_message(logger, 'Task {0} -- {1} {2} -- {3} {4}: {5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
+                    print_message(logger, '任务是 {0} -- {1} {2} -- {3} {4}: {5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
                 elif isinstance(val, float):
-                    print_message(logger, 'Task {0} -- {1} {2} -- {3} {4}: {5:.3f}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
+                    print_message(logger, '任务是 {0} -- {1} {2} -- {3} {4}: {5:.3f}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
                 else:
                     test_metrics[key] = str(val)
                     print_message(logger, 'Task {0} -- {1} {2} -- {3} {4}: \n{5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
@@ -460,7 +460,7 @@ def main():
                     )
                 else:
                     debug_info = ' '
-                print_message(logger, 'Task [{0:2}] updates[{1:6}] train loss[{2:.5f}]{3}remaining[{4}]'.format(task_id,
+                print_message(logger, '任务[{0:2}]，训练了第[{1:6}]步， 训练损失为：[{2:.5f}]{3}，预计还需时间：[{4}]'.format(task_id,
                                                                                                     model.updates,
                                                                                                     model.train_loss.avg,
                                                                                                     debug_info,
@@ -473,7 +473,7 @@ def main():
                 model_file = os.path.join(output_dir, 'model_{}_{}.pt'.format(epoch, model.updates))
                 evaluation(model, args.test_datasets, dev_data_list, task_defs, output_dir, epoch, n_updates=args.save_per_updates, with_label=True, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=False, device=device, logger=logger)
                 evaluation(model, args.test_datasets, test_data_list, task_defs, output_dir, epoch, n_updates=args.save_per_updates, with_label=False, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=True, device=device, logger=logger)
-                print_message(logger, 'Saving mt-dnn model to {}'.format(model_file))
+                print_message(logger, '每步都保存模型: {}'.format(model_file))
                 model.save(model_file)
 
         evaluation(model, args.test_datasets, dev_data_list, task_defs, output_dir, epoch, with_label=True, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=False, device=device, logger=logger)
@@ -481,6 +481,7 @@ def main():
         print_message(logger, '[new test scores at {} saved.]'.format(epoch))
         if args.local_rank in [-1, 0]:
             model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
+            print_message(logger, 'epoch结束保存模型: {}'.format(model_file))
             model.save(model_file)
     if args.tensorboard:
         tensorboard.close()

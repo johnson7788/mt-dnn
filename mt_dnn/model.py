@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 class MTDNNModel(object):
     def __init__(self, opt, device=None, state_dict=None, num_train_step=-1):
         self.config = opt   #模型和我们设置的所有参数，dict，len：103个
+        # 更新的步数，即训练了多少步
         self.updates = state_dict['updates'] if state_dict and 'updates' in state_dict else 0
         self.local_updates = 0
         self.device = device
