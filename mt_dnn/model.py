@@ -25,16 +25,19 @@ logger = logging.getLogger(__name__)
 
 class MTDNNModel(object):
     def __init__(self, opt, device=None, state_dict=None, num_train_step=-1):
-        self.config = opt
+        self.config = opt   #模型和我们设置的所有参数，dict，len：103个
         self.updates = state_dict['updates'] if state_dict and 'updates' in state_dict else 0
         self.local_updates = 0
         self.device = device
+        #初始化一个metric，平均值的metric，用于训练
         self.train_loss = AverageMeter()
         self.adv_loss = AverageMeter()
         self.emb_val =  AverageMeter()
         self.eff_perturb = AverageMeter()
         self.initial_from_local = True if state_dict else False
+        # 初始化一个随机答案网络,用于问答系统，stochastic answer network
         model = SANBertNetwork(opt, initial_from_local=self.initial_from_local)
+        # 总的参数量: eg: 110075139
         self.total_param = sum([p.nelement() for p in model.parameters() if p.requires_grad])
         if opt['cuda']:
             if self.config['local_rank'] != -1:
@@ -43,23 +46,28 @@ class MTDNNModel(object):
                 model = model.to(self.device)
         self.network = model
         if state_dict:
+            # 检查丢失的参数
             missing_keys, unexpected_keys = self.network.load_state_dict(state_dict['state'], strict=False)
-
+        # 优化器，部分参数学习率不需要decay
         optimizer_parameters = self._get_param_groups()
+        #设置优化器
         self._setup_optim(optimizer_parameters, state_dict, num_train_step)
         self.optimizer.zero_grad()
 
         #if self.config["local_rank"] not in [-1, 0]:
         #    torch.distributed.barrier()
-
+        # 分布式训练设置
         if self.config['local_rank'] != -1:
             self.mnetwork = torch.nn.parallel.DistributedDataParallel(self.network, device_ids=[self.config["local_rank"]], output_device=self.config["local_rank"], find_unused_parameters=True)
         elif self.config['multi_gpu_on']:
             self.mnetwork = nn.DataParallel(self.network)
         else:
             self.mnetwork = self.network
+        #设置损失类型，例如交叉熵损失
         self._setup_lossmap(self.config)
+        #设置KL损失，如果用户args存在的话
         self._setup_kd_lossmap(self.config)
+        #设置对抗训练的损失
         self._setup_adv_lossmap(self.config)
         self._setup_adv_training(self.config)
 
@@ -194,11 +202,24 @@ class MTDNNModel(object):
         return y
 
     def update(self, batch_meta, batch_data):
+        """
+        训练模型
+        :param batch_meta: 这一批次训练数据的元信息，dict
+        :type batch_meta: eg: {'token_id': 0, 'segment_id': 1, 'mask': 2, 'premise_mask': 3, 'hypothesis_mask': 4, 'task_id': 0, 'input_len': 5, 'task_def': {'label_vocab': <data_utils.vocab.Vocabulary object at 0x7fadc19e6550>, 'n_class': 3, 'data_type': <DataFormat.PremiseAndOneHypothesis: 2>, 'task_type': <TaskType.Classification: 1>, 'metric_meta': (<Metric.ACC: 0>,), 'split_names': ['train', 'matched_dev', 'mismatched_dev', 'matched_test', 'mismatched_test'], 'enable_san': False, 'dropout_p': 0.1, 'loss': <LossCriterion.CeCriterion: 0>, 'kd_loss': <LossCriterion.MseCriterion: 1>, 'adv_loss': <LossCriterion.SymKlCriterion: 7>}, 'pairwise_size': 1, 'label': 5, 'uids': ['1632', '1633', '1634', '1635', '1636', '1637', '1638', '1639']}
+        :param batch_data:  一个批次的数据的向量信息集合[[token_id*batch_size],[type_id * batch_size],[attention_mask * batch_size],....]
+        :type batch_data: 包含的数据包括： token_ids, type_ids, masks, premise_masks(前提mask), hypothesis_masks(假设mask)，label
+        :return:
+        :rtype:
+        """
+        #设置模型为train模式
         self.network.train()
+        # 获取label的向量，eg: tensor([0, 0, 1, 2, 2, 2, 2, 2])
         y = batch_data[batch_meta['label']]
+        # 重新检查下，是否放到gpu
         y = self._to_cuda(y) if self.config['cuda'] else y
-
+        # 任务的序号task_id eg：0
         task_id = batch_meta['task_id']
+        # 获取输入数据向量
         inputs = batch_data[:batch_meta['input_len']]
         if len(inputs) == 3:
             inputs.append(None)
@@ -211,10 +232,10 @@ class MTDNNModel(object):
             else:
                 weight = batch_data[batch_meta['factor']]
 
-        # fw to get logits
+        # fw to get logits， 真正的把数据放入模型，开始前向网络
         logits = self.mnetwork(*inputs)
 
-        # compute loss
+        # compute loss, 每个任务的损失
         loss = 0
         if self.task_loss_criterion[task_id] and (y is not None):
             loss_criterion = self.task_loss_criterion[task_id]
@@ -224,7 +245,7 @@ class MTDNNModel(object):
             else:
                 loss = self.task_loss_criterion[task_id](logits, y, weight, ignore_index=-1)
 
-        # compute kd loss
+        # 如果有其它损失，也计算其它损失，compute kd loss
         if self.config.get('mkd_opt', 0) > 0 and ('soft_label' in batch_meta):
             soft_labels = batch_meta['soft_label']
             soft_labels = self._to_cuda(soft_labels) if self.config['cuda'] else soft_labels
@@ -239,7 +260,7 @@ class MTDNNModel(object):
             adv_inputs = [self.mnetwork, logits] + inputs + [task_type, batch_meta.get('pairwise_size', 1)]
             adv_loss, emb_val, eff_perturb = self.adv_teacher.forward(*adv_inputs)
             loss = loss + self.config['adv_alpha'] * adv_loss
-
+        # eg：8
         batch_size = batch_data[batch_meta['token_id']].size(0)
         # rescale loss as dynamic batching
         if self.config['bin_on']:
@@ -251,6 +272,7 @@ class MTDNNModel(object):
             copied_loss = copied_loss / self.config['world_size']
             self.train_loss.update(copied_loss.item(), batch_size)
         else:
+            # 更新统计信息
             self.train_loss.update(loss.item(), batch_size)
             
         if self.config.get('adv_train', False) and self.adv_teacher:

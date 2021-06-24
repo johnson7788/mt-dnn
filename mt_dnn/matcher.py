@@ -29,9 +29,11 @@ class SANBertNetwork(nn.Module):
             raise ValueError("encoder_type is out of pre-defined types")
         self.encoder_type = opt['encoder_type']
         self.preloaded_config = None
-
+        # literal_encoder_type: eg: bert
         literal_encoder_type = EncoderModelType(self.encoder_type).name.lower()
+        # 模型的类和模型的配置类
         config_class, model_class, _ = MODEL_CLASSES[literal_encoder_type]
+        # 初始化模型，使用本地的配置，或者默认的配置
         if not initial_from_local:
             # self.bert = model_class.from_pretrained(opt['init_checkpoint'], config=self.preloaded_config)
             self.bert = model_class.from_pretrained(opt['init_checkpoint'])
@@ -45,33 +47,41 @@ class SANBertNetwork(nn.Module):
         if opt.get('dump_feature', False):
             self.opt = opt
             return
+        #是否更新固定预训练的bert模型参数，大于0表示固定
         if opt['update_bert_opt'] > 0:
             for p in self.bert.parameters():
                 p.requires_grad = False
-
+        # len(task_def_list)，里面包含几个task，长度就是几
         task_def_list = opt['task_def_list']
         self.task_def_list = task_def_list
+        # #不同的的deocder_opt代表不同的输出映射层， 1: SANClassifier, 0是普通线性映射
         self.decoder_opt = []
         self.task_types = []
         for task_id, task_def in enumerate(task_def_list):
             self.decoder_opt.append(generate_decoder_opt(task_def.enable_san, opt['answer_opt']))
             self.task_types.append(task_def.task_type)
 
-        # create output header
+        # 创建输出头
         self.scoring_list = nn.ModuleList()
         self.dropout_list = nn.ModuleList()
+        # 迭代每个任务
         for task_id in range(len(task_def_list)):
+            #这个任务的配置信息
             task_def: TaskDef = task_def_list[task_id]
+            # 这个任务的类别数量， eg: 3, 3分类
             lab = task_def.n_class
             decoder_opt = self.decoder_opt[task_id]
+            # 任务类型 TaskType.Classification
             task_type = self.task_types[task_id]
             task_dropout_p = opt['dropout_p'] if task_def.dropout_p is None else task_def.dropout_p
             dropout = DropoutWrapper(task_dropout_p, opt['vb_dropout'])
             self.dropout_list.append(dropout)
+            # 任务的object，例如分类，获取分类的object
             task_obj = tasks.get_task_obj(task_def)
             if task_obj is not None:
-                # quick hack
-                self.pooler = Pooler(hidden_size, dropout_p= opt['dropout_p'], actf=opt['pooler_actf'])
+                # Pooler隐藏层，
+                self.pooler = Pooler(hidden_size, dropout_p=opt['dropout_p'], actf=opt['pooler_actf'])
+                # 分类层
                 out_proj = task_obj.train_build_task_layer(decoder_opt, hidden_size, lab, opt, prefix='answer', dropout=dropout)
             elif task_type == TaskType.Span:
                 assert decoder_opt != 1

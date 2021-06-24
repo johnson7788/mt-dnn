@@ -31,6 +31,23 @@ class MTDNNTask:
 
     @staticmethod
     def train_build_task_layer(decoder_opt, hidden_size, lab, opt, prefix, dropout):
+        """
+        构建输出的映射层，线性映射层
+        :param decoder_opt: 不同的的deocder_opt代表不同的输出映射层
+        :type decoder_opt:  1: SANClassifier, 0是普通线性映射
+        :param hidden_size:  768
+        :type hidden_size:
+        :param lab: 类别数 eg：3
+        :type lab:
+        :param opt: 其它所有参数
+        :type opt:
+        :param prefix:  'answer'，任务的类型
+        :type prefix:
+        :param dropout: DropoutWrapper()
+        :type dropout:
+        :return:
+        :rtype:
+        """
         if decoder_opt == 1:
             out_proj = SANClassifier(hidden_size, hidden_size, lab, opt, prefix, dropout=dropout)
         else:
