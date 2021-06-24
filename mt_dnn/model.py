@@ -66,9 +66,9 @@ class MTDNNModel(object):
             self.mnetwork = self.network
         #设置损失类型，例如交叉熵损失
         self._setup_lossmap(self.config)
-        #设置KL损失，如果用户args存在的话
+        #设置回归损失，如果用户args存在的话
         self._setup_kd_lossmap(self.config)
-        #设置对抗训练的损失
+        #设置KL训练的损失
         self._setup_adv_lossmap(self.config)
         self._setup_adv_training(self.config)
 

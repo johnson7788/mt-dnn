@@ -26,23 +26,20 @@ def model_config(parser):
     parser.add_argument('--update_bert_opt', default=0, type=int, help='是否更新固定预训练的bert模型参数，大于0表示固定')
     parser.add_argument('--multi_gpu_on', action='store_true',help='默认False，是否使用多GPU')
     parser.add_argument('--mem_cum_type', type=str, default='simple',
-                        help='bilinear/simple/defualt')
-    parser.add_argument('--answer_num_turn', type=int, default=5)
+                        help='bilinear/simple/default')
+    parser.add_argument('--answer_num_turn', type=int, default=5,help='论文中的超参数K，K步推理')
     parser.add_argument('--answer_mem_drop_p', type=float, default=0.1)
     parser.add_argument('--answer_att_hidden_size', type=int, default=128)
-    parser.add_argument('--answer_att_type', type=str, default='bilinear',
-                        help='bilinear/simple/defualt')
-    parser.add_argument('--answer_rnn_type', type=str, default='gru',
-                        help='rnn/gru/lstm')
-    parser.add_argument('--answer_sum_att_type', type=str, default='bilinear',
-                        help='bilinear/simple/defualt')
+    parser.add_argument('--answer_att_type', type=str, default='bilinear', help='bilinear/simple/default')
+    parser.add_argument('--answer_rnn_type', type=str, default='gru', help='SAN逐步推理模块使用的结构是，rnn/gru/lstm')
+    parser.add_argument('--answer_sum_att_type', type=str, default='bilinear', help='bilinear/simple/default')
     parser.add_argument('--answer_merge_opt', type=int, default=1)
     parser.add_argument('--answer_mem_type', type=int, default=1)
     parser.add_argument('--max_answer_len', type=int, default=10)
     parser.add_argument('--answer_dropout_p', type=float, default=0.1)
     parser.add_argument('--answer_weight_norm_on', action='store_true')
     parser.add_argument('--dump_state_on', action='store_true')
-    parser.add_argument('--answer_opt', type=int, default=1, help='0,1',help='代表是否使用SANClassifier分类头还是普通的线性分类头,1表示使用SANClassifier, 0是普通线性映射')
+    parser.add_argument('--answer_opt', type=int, default=1, help='可选0,1，代表是否使用SANClassifier分类头还是普通的线性分类头,1表示使用SANClassifier, 0是普通线性映射')
     parser.add_argument('--pooler_actf', type=str, default='tanh',
                         help='tanh/relu/gelu, 构建输出头的时的激活函数的选择')
     parser.add_argument('--mtl_opt', type=int, default=0)
@@ -82,7 +79,7 @@ def data_config(parser):
     parser.add_argument('--data_dir', default='data/canonical_data/bert_uncased_lower')
     parser.add_argument('--data_sort_on', action='store_true')
     parser.add_argument('--name', default='farmer')
-    parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml")
+    parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml",help="使用的task任务定义的文件，默认是glue的task进行训练")
     parser.add_argument('--train_datasets', default='mnli',help='训练的多个任务的数据集，用逗号,分隔，如果多个数据集存在')
     parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched',help='测试的多个任务的数据集，用逗号,分隔，如果多个数据集存在，根据任务名前缀自动匹配，例如mnli的前半部分mnli_')
     parser.add_argument('--glue_format_on', action='store_true')
@@ -154,7 +151,7 @@ def train_config(parser):
     parser.add_argument('--debug', action='store_true', help="print debug info")
     return parser
 
-
+# 各种参数
 parser = argparse.ArgumentParser()
 parser = data_config(parser)
 parser = model_config(parser)

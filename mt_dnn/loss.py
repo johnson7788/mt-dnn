@@ -36,6 +36,13 @@ class Criterion(_Loss):
 
 class CeCriterion(Criterion):
     def __init__(self, alpha=1.0, name='Cross Entropy Criterion'):
+        """
+        交叉熵损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -50,9 +57,15 @@ class CeCriterion(Criterion):
         loss = loss * self.alpha
         return loss
 
-
 class SeqCeCriterion(CeCriterion):
     def __init__(self, alpha=1.0, name='Seq Cross Entropy Criterion'):
+        """
+        序列交叉熵损失，对于类似NER之类的序列标注任务， 只是把目标label的target变成1维后进行计算交叉熵损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__(alpha, name)
 
     def forward(self, input, target, weight=None, ignore_index=-1):
@@ -66,6 +79,13 @@ class SeqCeCriterion(CeCriterion):
 
 class MseCriterion(Criterion):
     def __init__(self, alpha=1.0, name='MSE Regression Criterion'):
+        """
+        MSE 均方差损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -83,6 +103,13 @@ class MseCriterion(Criterion):
 
 class KlCriterion(Criterion):
     def __init__(self, alpha=1.0, name='KL Div Criterion'):
+        """
+        KL 散度损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -98,6 +125,13 @@ class KlCriterion(Criterion):
 
 class NsKlCriterion(Criterion):
     def __init__(self, alpha=1.0, name='KL Div Criterion'):
+        """
+        stable KL 损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -114,6 +148,13 @@ class NsKlCriterion(Criterion):
 
 class SymKlCriterion(Criterion):
     def __init__(self, alpha=1.0, name='KL Div Criterion'):
+        """
+        对称的KL损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -130,6 +171,13 @@ class SymKlCriterion(Criterion):
 
 class NsSymKlCriterion(Criterion):
     def __init__(self, alpha=1.0, name='KL Div Criterion'):
+        """
+        稳定的对称KL损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -146,6 +194,13 @@ class NsSymKlCriterion(Criterion):
 
 class JSCriterion(Criterion):
     def __init__(self, alpha=1.0, name='JS Div Criterion'):
+        """
+        JS散度
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -165,6 +220,13 @@ class JSCriterion(Criterion):
 
 class HLCriterion(Criterion):
     def __init__(self, alpha=1.0, name='Hellinger Criterion'):
+        """
+        海林格距离
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -183,6 +245,13 @@ class HLCriterion(Criterion):
 
 class RankCeCriterion(Criterion):
     def __init__(self, alpha=1.0, name='Cross Entropy Criterion'):
+        """
+        排序的交叉熵损失，就是交叉熵损失，但是对输入和输出的维度进行调整
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name
@@ -199,6 +268,13 @@ class RankCeCriterion(Criterion):
 
 class SpanCeCriterion(Criterion):
     def __init__(self, alpha=1.0, name='Span Cross Entropy Criterion'):
+        """
+        跨度的交叉熵损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         """This is for extractive MRC, e.g., SQuAD, ReCoRD ... etc
         """
@@ -222,6 +298,13 @@ class SpanCeCriterion(Criterion):
 
 class MlmCriterion(Criterion):
     def __init__(self, alpha=1.0, name='BERT pre-train Criterion'):
+        """
+        MLM语言模型损失,其实也是交叉熵损失，包括MLM损失和NSP损失
+        :param alpha:
+        :type alpha:
+        :param name:
+        :type name:
+        """
         super().__init__()
         self.alpha = alpha
         self.name = name

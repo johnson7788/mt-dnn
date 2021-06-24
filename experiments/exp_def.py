@@ -48,13 +48,18 @@ class TaskDefs:
         adv_loss_map = {}
 
         for task, task_def in self._task_def_dic.items():
-            assert "_" not in task, "task name should not contain '_', current task name: %s" % task
+            assert "_" not in task, "确保任务名称中不包含_,因为我们用_区分每个任务的名称，在多任务的时候%s" % task
+            # 这个任务的类别，是及分类的,如果是回归任务，那么就没有n_class
             n_class_map[task] = task_def["n_class"]
+            # 数据的预定义的处理格式，对应不同的处理方法
             data_format = DataFormat[task_def["data_format"]]
             data_type_map[task] = data_format
+            # 任务类型，分类和回归
             task_type_map[task] = TaskType[task_def["task_type"]]
+            # metric
             metric_meta_map[task] = tuple(Metric[metric_name] for metric_name in task_def["metric_meta"])
             split_names_map[task] = task_def.get("split_names", ["train", "dev", "test"])
+            # 是否启用SAN网络
             enable_san_map[task] = task_def["enable_san"]
             if "labels" in task_def:
                 labels = task_def["labels"]
@@ -71,7 +76,7 @@ class TaskDefs:
                 loss_map[task] = loss_crt
             else:
                 loss_map[task] = None
-
+            # 回归损失
             if "kd_loss" in task_def:
                 t_loss = task_def["kd_loss"]
                 loss_crt = LossCriterion[t_loss]
