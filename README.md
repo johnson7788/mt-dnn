@@ -260,7 +260,7 @@ ls mt-dnn/data/canonical_data/bert-large-uncased/ | wc -l
 ```
 
 3. 训练模型 </br>
-   ```> python train.py --data_dir data/canonical_data/bert-large-uncased```
+   ```> python train.py --data_dir data/canonical_data/bert-large-uncased --train_datasets mnli --test_datasets mnli_matched,mnli_mismatched```
 
 **请注意，我们在4个V100 GPU上进行了基础MT-DNN模型的实验。你可能需要减少其他GPU的批次大小。** <br/>
 
@@ -270,12 +270,42 @@ ls mt-dnn/data/canonical_data/bert-large-uncased/ | wc -l
    + 通过上述脚本预处理GLUE数据
    + Training: </br>
    ```>scripts\run_mt_dnn.sh```
+   等价于:
+   ```buildoutcfg
+python train.py --data_dir data/canonical_data/bert_uncased_lower 
+--init_checkpoint mt_dnn_models/bert_model_large_uncased.pt 
+--batch_size 8 
+--output_dir checkpoints/mt-dnn-rte_adamax_answer_opt1_gc0_ggc1_2021-06-24T1252 
+--log_file checkpoints/mt-dnn-rte_adamax_answer_opt1_gc0_ggc1_2021-06-24T1252/log.log 
+--answer_opt 1 
+--optimizer adamax 
+--train_datasets mnli,rte,qqp,qnli,mrpc,sst,cola,stsb 
+--test_datasets mnli_matched,mnli_mismatched,rte 
+--grad_clipping 0 
+--global_grad_clipping 1 
+--learning_rate 5e-5 
+--multi_gpu_on
+```
 
-2. 微调：根据GLUE的每项任务对MT-DNN进行微调，以获得特定任务的模型。 </br>
+2. 微调：根据GLUE的每项任务对MT-DNN进行微调，以获得特定任务的模型。特定的任务模型 </br>
 这里，我们提供了两个例子，STS-B和RTE。你可以使用类似的脚本来微调所有的GLUE任务。 </br>
    + Finetune在STS-B任务上 </br>
    ```> scripts\run_stsb.sh``` </br>
-   就Pearson/Spearman相关性而言，你应该在STS-B dev上得到大约90.5/90.4。</br>
+等价于: 
+python train.py --grad_accumulation_step 2 
+--task_def ../experiments/glue/glue_task_def.yml 
+--data_dir ../data/canonical_data/bert_large_uncased_lower 
+--init_checkpoint ../mt_dnn_models/mt_dnn_large_uncased.pt 
+--batch_size 8 
+--output_dir checkpoints/mt-dnn-stsb_adamax_answer_opt0_gc0_ggc1_2021-06-24T1254 
+--log_file checkpoints/mt-dnn-stsb_adamax_answer_opt0_gc0_ggc1_2021-06-24T1254/log.log 
+--answer_opt 0 
+--optimizer adamax 
+--train_datasets stsb 
+--test_datasets stsb 
+--grad_clipping 0 
+--global_grad_clipping 1
+就Pearson/Spearman相关性而言，你应该在STS-B dev上得到大约90.5/90.4。</br>
    + Finetune在RTE任务上 </br>
    ```> scripts\run_rte.sh``` </br>
    就准确性而言，你应该在RTE dev上得到约83.8的结果。</br>

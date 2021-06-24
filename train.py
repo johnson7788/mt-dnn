@@ -84,7 +84,7 @@ def data_config(parser):
     parser.add_argument('--name', default='farmer')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml")
     parser.add_argument('--train_datasets', default='mnli',help='训练的多个任务的数据集，用逗号,分隔，如果多个数据集存在')
-    parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched')
+    parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched',help='测试的多个任务的数据集，用逗号,分隔，如果多个数据集存在，根据任务名前缀自动匹配，例如mnli的前半部分mnli_')
     parser.add_argument('--glue_format_on', action='store_true')
     parser.add_argument('--mkd-opt', type=int, default=0, 
                         help=">0表示开启知识蒸馏, requires 'softlabel' column in input data")
@@ -97,7 +97,7 @@ def train_config(parser):
                         help='是否使用GPU')
     parser.add_argument('--log_per_updates', type=int, default=500)
     parser.add_argument('--save_per_updates', type=int, default=10000)
-    parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁')
+    parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁,每步都评估 ')
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=8, help='训练的batch_size')
     parser.add_argument('--batch_size_eval', type=int, default=8)
