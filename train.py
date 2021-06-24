@@ -54,8 +54,8 @@ def model_config(parser):
     parser.add_argument('--num_hidden_layers', type=int, default=-1)
 
     # BERT pre-training
-    parser.add_argument('--bert_model_type', type=str, default='bert-base-uncased')
-    parser.add_argument('--do_lower_case', action='store_true')
+    parser.add_argument('--bert_model_type', type=str, default='bert-base-uncased',help='使用的预训练模型')
+    parser.add_argument('--do_lower_case', action='store_true',help='是否小写')
     parser.add_argument('--masked_lm_prob', type=float, default=0.15)
     parser.add_argument('--short_seq_prob', type=float, default=0.2)
     parser.add_argument('--max_predictions_per_seq', type=int, default=128)
@@ -87,14 +87,14 @@ def data_config(parser):
     parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched')
     parser.add_argument('--glue_format_on', action='store_true')
     parser.add_argument('--mkd-opt', type=int, default=0, 
-                        help=">0 to turn on knowledge distillation, requires 'softlabel' column in input data")
+                        help=">0表示开启知识蒸馏, requires 'softlabel' column in input data")
     parser.add_argument('--do_padding', action='store_true')
     return parser
 
 
 def train_config(parser):
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
-                        help='whether to use GPU acceleration.')
+                        help='是否使用GPU')
     parser.add_argument('--log_per_updates', type=int, default=500)
     parser.add_argument('--save_per_updates', type=int, default=10000)
     parser.add_argument('--save_per_updates_on', action='store_true')
@@ -269,7 +269,6 @@ def print_message(logger, message, level=0):
 
 def main():
     # set up dist
-    device = torch.device("cuda")
     if args.local_rank > -1:
         device = initialize_distributed(args)
     elif torch.cuda.is_available():

@@ -251,10 +251,12 @@ data下的目录内容
 
 2. 预处理数据 </br>
 ```
-#规范化数据，即数据预处理, 保存到 /data/canonical_data目录下, ls canonical_data/ | wc -l #共有处理好的数据35个
+#规范化数据，把GLUE数据变成标准格式，即数据预处理, 保存到 /data/canonical_data目录下, ls canonical_data/ | wc -l #共有处理好的数据35个
 python experiments/glue/glue_prepro.py   
 # 数据预处理tokenizer化，保存到对应数据下的对应模型下，如下，会保存到data/canonical_data/bert-large-uncased/目录下，格式为json文件，包含uid，label，和token_id, type_id, attention_mask
 python prepro_std.py --model bert-large-uncased --root_dir data/canonical_data --task_def experiments/glue/glue_task_def.yml --do_lower_case
+#同样生成35个处理好的文件,json格式
+ls mt-dnn/data/canonical_data/bert-large-uncased/ | wc -l
 ```
 
 3. 训练 </br>
