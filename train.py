@@ -54,7 +54,7 @@ def model_config(parser):
     parser.add_argument('--num_hidden_layers', type=int, default=-1)
 
     # BERT pre-training
-    parser.add_argument('--bert_model_type', type=str, default='bert-base-uncased',help='使用的预训练模型')
+    parser.add_argument('--bert_model_type', type=str, default='bert-large-uncased',help='使用的预训练模型')
     parser.add_argument('--do_lower_case', action='store_true',help='是否小写')
     parser.add_argument('--masked_lm_prob', type=float, default=0.15)
     parser.add_argument('--short_seq_prob', type=float, default=0.2)
@@ -280,13 +280,13 @@ def main():
     # update data dir
     opt['data_dir'] = data_dir
     batch_size = args.batch_size
-    print_message(logger, 'Launching the MT-DNN training')
+    print_message(logger, '开始MT-DNN训练')
     #return
     tasks = {}
     task_def_list = []
     dropout_list = []
+    # 不是分布式，那么就打印
     printable = args.local_rank in [-1, 0]
-
     train_datasets = []
     for dataset in args.train_datasets:
         prefix = dataset.split('_')[0]
@@ -294,10 +294,11 @@ def main():
             continue
         task_id = len(tasks)
         tasks[prefix] = task_id
+        #训练的基本数据信息，例如用哪个损失，任务类型，任务标签等
         task_def = task_defs.get_task_def(prefix)
         task_def_list.append(task_def)
         train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
-        print_message(logger, 'Loading {} as task {}'.format(train_path, task_id))
+        print_message(logger, '加载训练任务 {}，训练任务的顺序id是： {}'.format(train_path, task_id))
         train_data_set = SingleTaskDataset(train_path, True, maxlen=args.max_seq_len, task_id=task_id, task_def=task_def, printable=printable)
         train_datasets.append(train_data_set)
     train_collater = Collater(dropout_w=args.dropout_w, encoder_type=encoder_type, soft_label=args.mkd_opt > 0, max_seq_len=args.max_seq_len, do_padding=args.do_padding)
