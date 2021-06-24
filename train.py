@@ -42,7 +42,7 @@ def model_config(parser):
     parser.add_argument('--answer_dropout_p', type=float, default=0.1)
     parser.add_argument('--answer_weight_norm_on', action='store_true')
     parser.add_argument('--dump_state_on', action='store_true')
-    parser.add_argument('--answer_opt', type=int, default=1, help='0,1')
+    parser.add_argument('--answer_opt', type=int, default=1, help='0,1',help='代表是否使用SANClassifier分类头还是普通的线性分类头,1表示使用SANClassifier, 0是普通线性映射')
     parser.add_argument('--pooler_actf', type=str, default='tanh',
                         help='tanh/relu/gelu, 构建输出头的时的激活函数的选择')
     parser.add_argument('--mtl_opt', type=int, default=0)
@@ -96,7 +96,7 @@ def train_config(parser):
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
                         help='是否使用GPU')
     parser.add_argument('--log_per_updates', type=int, default=500)
-    parser.add_argument('--save_per_updates', type=int, default=10000)
+    parser.add_argument('--save_per_updates', type=int, default=10000,help='结合save_per_updates_on一起使用，表示没多少step，进行模型评估和保存')
     parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁,每步都评估 ')
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=8, help='训练的batch_size')

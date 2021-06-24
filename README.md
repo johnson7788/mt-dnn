@@ -259,8 +259,23 @@ python prepro_std.py --model bert-large-uncased --root_dir data/canonical_data -
 ls mt-dnn/data/canonical_data/bert-large-uncased/ | wc -l
 ```
 
-3. 训练模型 </br>
+3. 单任务训练模型 </br>
    ```> python train.py --data_dir data/canonical_data/bert-large-uncased --train_datasets mnli --test_datasets mnli_matched,mnli_mismatched```
+
+4. 测试多任务
+python train.py --data_dir data/canonical_data/bert-large-uncased
+--init_checkpoint mt_dnn_models/bert_model_base_uncased.pt
+--batch_size 16
+--output_dir checkpoints/mt-dnn-multi_test
+--log_file checkpoints/mt-dnn-multi_test/log.log 
+--answer_opt 1 
+--optimizer adamax 
+--train_datasets mnli,rte,qqp
+--test_datasets mnli_matched,mnli_mismatched,rte 
+--grad_clipping 0 
+--global_grad_clipping 1 
+--learning_rate 5e-5 
+
 
 **请注意，我们在4个V100 GPU上进行了基础MT-DNN模型的实验。你可能需要减少其他GPU的批次大小。** <br/>
 
