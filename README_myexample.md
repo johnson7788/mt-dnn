@@ -46,3 +46,5 @@ data_my/
 ```buildoutcfg
 python train.py --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --task_def experiments/myexample/my_task_def.yml --data_dir data_my/canonical_data/bert-base-chinese --train_datasets absa --test_datasets absa```
 ```
+
+# 测试模型，新建一个flask的api接口，测试模型效果

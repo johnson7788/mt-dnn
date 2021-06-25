@@ -141,3 +141,4 @@ int_test_data/glue/input/prepro_std/
 /deploy
 /.vscode
 data_my
+trained_model
