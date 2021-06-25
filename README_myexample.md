@@ -1,4 +1,10 @@
 # 测试中文的多任务模型
+
+# 需要准备的文件
+experiments/myexample/my_task_def.yml  # 定义你的任务，多个任务
+experiments/myexample/mydata_prepro.py  #定义你的每个任务的处理方法，规范处理格式
+data_my   # 你的数据的保存目录，包括原始数据，规范后的数据，和tokenize后的数据
+
 ## 任务1， Aspect的情感分析，3分类
 ## 任务2， 8个维度的词性判别，2分类
 
