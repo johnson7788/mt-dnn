@@ -63,8 +63,8 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
     def change_data(kind_data):
         rows = []
         for idx, one_data in enumerate(kind_data):
-            content, keyword, sentiment = one_data
-            label_id = labels2id[sentiment]
+            content, keyword, label = one_data
+            label_id = labels2id[label]
             sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label_id}
             rows.append(sample)
         return rows

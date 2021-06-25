@@ -238,11 +238,11 @@ def main(args):
 
     for task in task_defs.get_task_names():
         task_def = task_defs.get_task_def(task)
-        logger.info("Task %s" % task)
+        logger.info("开始处理任务: %s" % task)
         for split_name in task_def.split_names:
             file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
             if not os.path.exists(file_path):
-                logger.warning("File %s doesnot exit")
+                logger.warning(f"文件{file_path}不存在，请检查")
                 sys.exit(1)
             rows = load_data(file_path, task_def)
             dump_path = os.path.join(mt_dnn_root, "%s_%s.json" % (task, split_name))

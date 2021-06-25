@@ -10,7 +10,6 @@ def load_data(file_path, task_def):
     label_dict = task_def.label_vocab
     if task_type == TaskType.Ranking:
         assert data_format == DataFormat.PremiseAndMultiHypothesis
-
     rows = []
     for line in open(file_path, encoding="utf-8"):
         fields = line.strip("\n").split("\t")
