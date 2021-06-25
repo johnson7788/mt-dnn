@@ -23,17 +23,17 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
     """
     if kind == 'absa':
         all_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False)
-        labels2id = {
-            "消极": 0,
-            "中性": 1,
-            "积极": 2,
-        }
+        # labels2id = {
+        #     "消极": 0,
+        #     "中性": 1,
+        #     "积极": 2,
+        # }
     elif kind == 'dem8':
         # 注意dirpath_list使用哪些数据进行训练，那么预测时，也是用这样的数据
-        labels2id = {
-            "是": 0,
-            "否": 1,
-        }
+        # labels2id = {
+        #     "是": 0,
+        #     "否": 1,
+        # }
         all_data = get_demision8(split=False, dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion','/opt/lavector/component', '/opt/lavector/fragrance'])
     else:
         print("数据的种类不存在，退出")
@@ -64,8 +64,8 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
         rows = []
         for idx, one_data in enumerate(kind_data):
             content, keyword, label = one_data
-            label_id = labels2id[label]
-            sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label_id}
+            # label_id = labels2id[label]
+            sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
             rows.append(sample)
         return rows
     absa_train_data = change_data(train_data)

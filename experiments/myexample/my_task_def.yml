@@ -3,9 +3,9 @@ absa:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
-    - negative
-    - neutral
-    - positive
+    - 消极
+    - 中性
+    - 积极
   metric_meta:
     - ACC
   loss: CeCriterion
@@ -22,8 +22,8 @@ dem8:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
-    - yes
-    - no
+    - 是
+    - 否
   metric_meta:
   - ACC
   - F1
