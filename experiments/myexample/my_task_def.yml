@@ -1,4 +1,5 @@
 absa:
+  description: Aspect的情感分析
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
@@ -16,9 +17,13 @@ absa:
     - dev
     - test
   task_type: Classification
-demision8:
+dem8:
+  description: 8个维度的二分类数据，类似absa，但是是二分类的
   data_format: PremiseAndOneHypothesis
   enable_san: false
+  labels:
+    - yes
+    - no
   metric_meta:
   - ACC
   - F1
