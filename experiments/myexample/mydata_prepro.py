@@ -65,6 +65,7 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
         for idx, one_data in enumerate(kind_data):
             content, keyword, label = one_data
             # label_id = labels2id[label]
+            assert label in ['消极','中性','积极','是','否'], "label不是特定的关键字，那么my_task_def.yml配置文件中的labels就不能解析，会出现错误"
             sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
             rows.append(sample)
         return rows
