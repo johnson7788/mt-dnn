@@ -49,17 +49,19 @@ class TaskDefs:
 
         for task, task_def in self._task_def_dic.items():
             assert "_" not in task, "确保任务名称中不包含_,因为我们用_区分每个任务的名称，在多任务的时候%s" % task
-            # 这个任务的类别，是及分类的,如果是回归任务，那么就没有n_class
+            # 这个任务的类别，是及分类的,如果是回归任务，那么就没有n_class, {'cola': 2}
             n_class_map[task] = task_def["n_class"]
-            # 数据的预定义的处理格式，对应不同的处理方法
+            # 数据的预定义的处理格式，对应不同的处理方法,DataFormat.PremiseOnly
             data_format = DataFormat[task_def["data_format"]]
+            # {'cola': <DataFormat.PremiseOnly: 1>}
             data_type_map[task] = data_format
-            # 任务类型，分类和回归
+            # 任务类型，分类和回归, {'cola': <TaskType.Classification: 1>}
             task_type_map[task] = TaskType[task_def["task_type"]]
-            # metric
+            # metric, {'cola': (<Metric.ACC: 0>, <Metric.MCC: 2>)}
             metric_meta_map[task] = tuple(Metric[metric_name] for metric_name in task_def["metric_meta"])
+            # {'cola': ['train', 'dev', 'test']}
             split_names_map[task] = task_def.get("split_names", ["train", "dev", "test"])
-            # 是否启用SAN网络
+            # 是否启用SAN网络, {'cola': False}
             enable_san_map[task] = task_def["enable_san"]
             if "labels" in task_def:
                 labels = task_def["labels"]

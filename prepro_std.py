@@ -216,7 +216,7 @@ def parse_args():
                         help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
     parser.add_argument('--do_lower_case', action='store_true')
     parser.add_argument('--do_padding', action='store_true')
-    parser.add_argument('--root_dir', type=str, default='data/canonical_data')
+    parser.add_argument('--root_dir', type=str, default='data/canonical_data',help='规范后的数据的位置，处理后的输出目录也在这个目录下，根据处理的模型的名字命名')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml")
 
     args = parser.parse_args()
