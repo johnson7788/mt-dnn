@@ -1,9 +1,12 @@
 absa:
   data_format: PremiseAndOneHypothesis
-  enable_san: false 
+  enable_san: false
+  labels:
+    - negative
+    - neutral
+    - positive
   metric_meta:
-  - ACC
-  - F1
+    - ACC
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
