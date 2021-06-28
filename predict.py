@@ -17,41 +17,47 @@ def dump(path, data):
         json.dump(data, f)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--task_def", type=str, default="experiments/glue/glue_task_def.yml")
-parser.add_argument("--task", type=str)
-parser.add_argument("--task_id", type=int, help="the id of this task when training")
+parser.add_argument("--task_def", type=str, default="experiments/glue/glue_task_def.yml",help='任务的配置文件')
+parser.add_argument("--task", type=str, help='预测哪个任务, 你的任务配置文件中的任务的名字')
+parser.add_argument("--task_id", type=int, help="训练时的任务id，根据训练时指定的--train_datasets参数的顺序，默认从0开始")
 
 parser.add_argument("--prep_input", type=str)
 parser.add_argument("--with_label", action="store_true")
 parser.add_argument("--score", type=str, help="score output path")
 
-parser.add_argument('--max_seq_len', type=int, default=512)
-parser.add_argument('--batch_size_eval', type=int, default=8)
-parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
-                    help='whether to use GPU acceleration.')
-
-parser.add_argument("--checkpoint", default='mt_dnn_models/bert_model_base_uncased.pt', type=str)
+parser.add_argument('--max_seq_len', type=int, default=512, help='最大序列长度')
+parser.add_argument('--batch_size_eval', type=int, default=8, help='评估的batch_size大小')
+parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(), help='whether to use GPU acceleration.')
+parser.add_argument("--checkpoint", default='mt_dnn_models/bert_model_base_uncased.pt', type=str,help='你训练好的模型，使用哪个模型进行预测')
+parser.add_argument("--checkpoint", default='mt_dnn_models/bert_model_base_uncased.pt', type=str,help='你训练好的模型，使用哪个模型进行预测')
 
 args = parser.parse_args()
 
-# load task info
+# load task info, eg: absa
 task = args.task
 task_defs = TaskDefs(args.task_def)
-assert args.task in task_defs._task_type_map
-assert args.task in task_defs._data_type_map
-assert args.task in task_defs._metric_meta_map
+assert args.task in task_defs._task_type_map, "确保任务在任务的配置文件中"
+assert args.task in task_defs._data_type_map, "确保任务在任务的配置文件中"
+assert args.task in task_defs._metric_meta_map, "确保任务在任务的配置文件中"
+# eg: absa
 prefix = task.split('_')[0]
 task_def = task_defs.get_task_def(prefix)
+# eg: DataFormat.PremiseAndOneHypothesis
 data_type = task_defs._data_type_map[args.task]
+# eg: TaskType.Classification
 task_type = task_defs._task_type_map[args.task]
+# eg: Metric.ACC
 metric_meta = task_defs._metric_meta_map[args.task]
-# load model
+# load model, eg: 'trained_model/absa_dem8.pt'
 checkpoint_path = args.checkpoint
+# 确保checkpoint存在
 assert os.path.exists(checkpoint_path)
+# 是否放GPU
 if args.cuda:
     state_dict = torch.load(checkpoint_path)
 else:
     state_dict = torch.load(checkpoint_path, map_location="cpu")
+# 配置和模型保存到一起了
 config = state_dict['config']
 config["cuda"] = args.cuda
 task_def = task_defs.get_task_def(prefix)
@@ -62,9 +68,11 @@ config['fp16'] = False
 config['answer_opt'] = 0
 config['adv_train'] = False
 del state_dict['optimizer']
+# 初始化模型
 model = MTDNNModel(config, state_dict=state_dict)
+# encoder的类型 EncoderModelType.BERT
 encoder_type = config.get('encoder_type', EncoderModelType.BERT)
-# load data
+# load data， 加载数据集
 test_data_set = SingleTaskDataset(args.prep_input, False, maxlen=args.max_seq_len, task_id=args.task_id, task_def=task_def)
 collater = Collater(is_train=False, encoder_type=encoder_type)
 test_data = DataLoader(test_data_set, batch_size=args.batch_size_eval, collate_fn=collater.collate_fn, pin_memory=args.cuda)

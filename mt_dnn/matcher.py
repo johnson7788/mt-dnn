@@ -100,7 +100,7 @@ class SANBertNetwork(nn.Module):
                 else:
                     out_proj = nn.Linear(hidden_size, lab)
             self.scoring_list.append(out_proj)
-        self.opt = opt
+        self.opt = opt  #所有的参数
 
 
     def embed_encode(self, input_ids, token_type_ids=None, attention_mask=None):

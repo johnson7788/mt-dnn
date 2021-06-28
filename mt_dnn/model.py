@@ -33,7 +33,7 @@ class MTDNNModel(object):
         #初始化一个metric，平均值的metric，用于训练
         self.train_loss = AverageMeter()
         self.adv_loss = AverageMeter()
-        self.emb_val =  AverageMeter()
+        self.emb_val = AverageMeter()
         self.eff_perturb = AverageMeter()
         self.initial_from_local = True if state_dict else False
         # 初始化一个随机答案网络,用于问答系统，stochastic answer network
@@ -68,7 +68,7 @@ class MTDNNModel(object):
         self._setup_lossmap(self.config)
         #设置回归损失，如果用户args存在的话
         self._setup_kd_lossmap(self.config)
-        #设置KL训练的损失
+        #设置KL训练的损失，如果配置中设置的话
         self._setup_adv_lossmap(self.config)
         self._setup_adv_training(self.config)
 
