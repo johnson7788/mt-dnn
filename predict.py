@@ -54,7 +54,7 @@ assert os.path.exists(checkpoint_path)
 
 # 是否放GPU
 if args.cuda and torch.cuda.is_available():
-    state_dict = torch.load(checkpoint_path, map_location='gpu')
+    state_dict = torch.load(checkpoint_path)
     device = torch.device("cuda")
 else:
     state_dict = torch.load(checkpoint_path, map_location="cpu")

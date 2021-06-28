@@ -48,7 +48,7 @@ python train.py --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --tas
 ```
 
 # 测试模型
-predict.py --task_def experiments/myexample/my_task_def.yml --task absa --task_id 0 --checkpoint trained_model/absa_dem8.pt
+predict.py --task_def experiments/myexample/my_task_def.yml --task absa --task_id 0 --checkpoint trained_model/absa_dem8.pt --prep_input data_my/canonical_data/bert-base-chinese/absa_test.json --score predict_score.txt
 
 
 # 新建一个flask的api接口
