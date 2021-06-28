@@ -93,7 +93,7 @@ def train_config(parser):
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
                         help='是否使用GPU')
     parser.add_argument('--log_per_updates', type=int, default=500)
-    parser.add_argument('--save_per_updates', type=int, default=10000,help='结合save_per_updates_on一起使用，表示没多少step，进行模型评估和保存')
+    parser.add_argument('--save_per_updates', type=int, default=10000,help='结合save_per_updates_on一起使用，表示每多少step，进行模型评估和保存')
     parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁,每步都评估 ')
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=8, help='训练的batch_size')

@@ -62,8 +62,9 @@ else:
 # 配置和模型保存到一起了
 config = state_dict['config']
 config["cuda"] = args.cuda
-task_def = task_defs.get_task_def(prefix)
-task_def_list = [task_def]
+task_def_dem8 = task_defs.get_task_def('dem8')
+task_def_absa = task_defs.get_task_def('absa')
+task_def_list = [task_def_absa,task_def_dem8]
 config['task_def_list'] = task_def_list
 ## temp fix
 config['fp16'] = False
@@ -81,10 +82,11 @@ test_data = DataLoader(test_data_set, batch_size=args.batch_size_eval, collate_f
 
 
 with torch.no_grad():
+    # test_metrics eg: acc结果，准确率结果
+    # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id
     test_metrics, test_predictions, scores, golds, test_ids = eval_model(model=model, data=test_data,
                                                                          metric_meta=metric_meta,
                                                                          device=device, with_label=args.with_label)
-
     results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
     dump(path=args.score, data=results)
     if args.with_label:
