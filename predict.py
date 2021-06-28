@@ -23,7 +23,7 @@ parser.add_argument("--task_id", type=int, help="训练时的任务id，根据�
 
 parser.add_argument("--prep_input", type=str, help='测试集的数据的文件的路径', default='data_my/canonical_data/bert-base-chinese/absa_test.json')
 parser.add_argument("--with_label", action="store_true", help='打印metrics')
-parser.add_argument("--score", type=str, default='predict_score.txt',help="scores的保存路径")
+parser.add_argument("--score", type=str, default='predict_score.txt',help="scores的保存路径, 每个样本的predict的分数，即最大的概率")
 
 parser.add_argument('--max_seq_len', type=int, default=512, help='最大序列长度')
 parser.add_argument('--batch_size_eval', type=int, default=8, help='评估的batch_size大小')
@@ -71,7 +71,7 @@ config['answer_opt'] = 0
 config['adv_train'] = False
 del state_dict['optimizer']
 # 初始化模型
-model = MTDNNModel(config, state_dict=state_dict)
+model = MTDNNModel(config, device=device, state_dict=state_dict)
 # encoder的类型 EncoderModelType.BERT
 encoder_type = config.get('encoder_type', EncoderModelType.BERT)
 # load data， 加载数据集
@@ -88,4 +88,4 @@ with torch.no_grad():
     results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
     dump(path=args.score, data=results)
     if args.with_label:
-        print(test_metrics)
+        print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")

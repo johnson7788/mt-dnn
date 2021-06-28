@@ -54,7 +54,7 @@ def swish(x):
 def linear_act(x):
     return x
 
-ACT2FN = {"gelu": gelu, "relu": torch.nn.functional.relu, "swish": swish, "tanh": torch.nn.functional.tanh, "linear": linear_act, 'sigmoid': torch.sigmoid}
+ACT2FN = {"gelu": gelu, "relu": torch.relu, "swish": swish, "tanh": torch.tanh, "linear": linear_act, 'sigmoid': torch.sigmoid}
 
 
 class BertConfig(object):
