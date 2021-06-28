@@ -297,7 +297,8 @@ def main():
         task_def_list.append(task_def)
         train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
         print_message(logger, '加载训练任务 {}，训练任务的顺序id是： {}'.format(train_path, task_id))
-        train_data_set = SingleTaskDataset(train_path, True, maxlen=args.max_seq_len, task_id=task_id, task_def=task_def, printable=printable)
+        # 训练的数据的json文件， train_path = 'data_my/canonical_data/bert-base-chinese/absa_train.json'
+        train_data_set = SingleTaskDataset(path=train_path, is_train=True, maxlen=args.max_seq_len, task_id=task_id, task_def=task_def, printable=printable)
         train_datasets.append(train_data_set)
     #Collater函数
     train_collater = Collater(dropout_w=args.dropout_w, encoder_type=encoder_type, soft_label=args.mkd_opt > 0, max_seq_len=args.max_seq_len, do_padding=args.do_padding)
