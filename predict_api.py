@@ -398,19 +398,33 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta
             }
 
-    def predict(self, task_name, data):
+    def predict_batch(self, task_name, data, with_label=False):
         assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
         test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
+        task_type = TaskType.Classification
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
             # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
-            test_metrics, test_predictions, scores, golds, test_ids = eval_model(model=self.model, data=test_data,
-                                                                                 metric_meta=self.tasks_info[task_name]['metric_meta'],
-                                                                                 device=self.device,
-                                                                                 with_label=False)
-            results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
-            print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
+            predictions = []
+            golds = []
+            scores = []
+            ids = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+                ids.extend(batch_info['uids'])
+
+            if task_type == TaskType.Span:
+                from experiments.squad import squad_utils
+                golds = squad_utils.merge_answers(ids, golds)
+                predictions, scores = squad_utils.select_answers(ids, predictions, scores)
+            if with_label:
+                metrics = calc_metrics(self.tasks_info[task_name]['metric_meta'], golds, predictions, scores, label_mapper=None)
+            print(f"预测结果{predictions}")
 
 
 @app.route("/api/absa_predict", methods=['POST'])
@@ -425,7 +439,7 @@ def absa_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.predict(task_name='absa', data=test_data)
+    results = model.predict_batch(task_name='absa', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
@@ -442,7 +456,7 @@ def dem8_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.predict(task_name='dem8', data=test_data)
+    results = model.predict_batch(task_name='dem8', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
