@@ -64,10 +64,10 @@ class SinglePredictDataset(Dataset):
                  seed=13,
                  short_seq_prob=0.1,
                  max_seq_length=512,
-                 max_predictions_per_seq=80,
-                 printable=True):
+                 max_predictions_per_seq=80
+                 ):
         data = self.build_data(data=data, tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab)
-        data, tokenizer = self.load(data, is_train, maxlen, factor, task_def, printable=printable)
+        data = self.add_factor(data)
         self._data = data
         self._tokenizer = tokenizer
         self._task_id = task_id
@@ -85,28 +85,12 @@ class SinglePredictDataset(Dataset):
     def get_task_id(self):
         return self._task_id
 
-    def load(self, path, is_train=True, maxlen=512, factor=1.0, task_def=None, printable=True):
-        task_type = task_def.task_type
-        assert task_type is not None
-        with open(path, 'r', encoding='utf-8') as reader:
-            data = []
-            cnt = 0
-            for line in reader:
-                sample = json.loads(line)
-                sample['factor'] = factor
-                cnt += 1
-                if is_train:
-                    task_obj = tasks.get_task_obj(task_def)
-                    if task_obj is not None and not task_obj.input_is_valid_sample(sample, maxlen):
-                        continue
-                    if (task_type == TaskType.Ranking) and (len(sample['token_id'][0]) > maxlen or len(sample['token_id'][1]) > maxlen):
-                        continue
-                    if (task_type != TaskType.Ranking) and (len(sample['token_id']) > maxlen):
-                        continue
-                data.append(sample)
-            if printable:
-                print('Loaded {} samples out of {}'.format(len(data), cnt))
-        return data, None
+    def add_factor(self, data, factor=1.0):
+        new_data = []
+        for sample in data:
+            sample['factor'] = factor
+            new_data.append(sample)
+        return new_data
 
     def feature_extractor(self, tokenizer, text_a, text_b=None, max_length=512, do_padding=False):
         inputs = tokenizer(
@@ -158,14 +142,13 @@ class SinglePredictDataset(Dataset):
             """
             feature_datas = []
             for idx, sample in enumerate(data):
-                ids = sample['uid']
-                premise = sample['premise']
-                hypothesis = sample['hypothesis']
-                label = sample['label']
+                premise = sample[0]
+                hypothesis = sample[1]
+                label = 0
                 input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
                                                                     max_length=max_seq_len)
                 features = {
-                    'uid': ids,
+                    'uid': idx,
                     'label': label,
                     'token_id': input_ids,
                     'type_id': type_ids,
@@ -179,7 +162,6 @@ class SinglePredictDataset(Dataset):
             """
             feature_datas = []
             for idx, sample in enumerate(data):
-                ids = sample['uid']
                 premise = sample['premise']
                 hypothesis_list = sample['hypothesis']
                 label = sample['label']
@@ -193,7 +175,7 @@ class SinglePredictDataset(Dataset):
                     type_ids_list.append(type_ids)
                     attention_mask_list.append(input_mask)
                 features = {
-                    'uid': ids,
+                    'uid': idx,
                     'label': label,
                     'token_id': input_ids_list,
                     'type_id': type_ids_list,
@@ -206,7 +188,6 @@ class SinglePredictDataset(Dataset):
         def build_data_sequence(data, max_seq_len=512, tokenizer=None, label_mapper=None):
             feature_datas = []
             for idx, sample in enumerate(data):
-                ids = sample['uid']
                 premise = sample['premise']
                 tokens = []
                 labels = []
@@ -226,7 +207,7 @@ class SinglePredictDataset(Dataset):
                 input_ids = tokenizer.convert_tokens_to_ids([tokenizer.cls_token] + tokens + [tokenizer.sep_token])
                 assert len(label) == len(input_ids)
                 type_ids = [0] * len(input_ids)
-                features = {'uid': ids, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
+                features = {'uid': idx, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
                 feature_datas.append(features)
             return feature_datas
 
@@ -234,7 +215,6 @@ class SinglePredictDataset(Dataset):
             unique_id = 1000000000  # TODO: this is from BERT, needed to remove it...
             feature_datas = []
             for example_index, sample in enumerate(data):
-                ids = sample['uid']
                 doc = sample['premise']
                 query = sample['hypothesis']
                 label = sample['label']
@@ -262,8 +242,8 @@ class SinglePredictDataset(Dataset):
                                                        answer_text=answer,
                                                        is_training=True)
                 unique_id += len(feature_list)
-                for feature in feature_list:
-                    so = json.dumps({'uid': ids,
+                for f_idx, feature in enumerate(feature_list):
+                    so = json.dumps({'uid': f"{idx}_{f_idx}",
                                      'token_id': feature.input_ids,
                                      'mask': feature.input_mask,
                                      'type_id': feature.segment_ids,
@@ -282,23 +262,23 @@ class SinglePredictDataset(Dataset):
             return feature_datas
 
         if data_format == DataFormat.PremiseOnly:
-            build_data_premise_only(
+            feature_datas = build_data_premise_only(
                 data,
                 max_seq_len,
                 tokenizer)
         elif data_format == DataFormat.PremiseAndOneHypothesis:
-            feature_data = build_data_premise_and_one_hypo(
+            feature_datas = build_data_premise_and_one_hypo(
                 data, max_seq_len, tokenizer)
         elif data_format == DataFormat.PremiseAndMultiHypothesis:
-            feature_data = build_data_premise_and_multi_hypo(
+            feature_datas = build_data_premise_and_multi_hypo(
                 data, max_seq_len, tokenizer)
         elif data_format == DataFormat.Seqence:
-            feature_data = build_data_sequence(data, max_seq_len, tokenizer, lab_dict)
+            feature_datas = build_data_sequence(data, max_seq_len, tokenizer, lab_dict)
         elif data_format == DataFormat.MRC:
-            feature_data = build_data_mrc(data, max_seq_len, tokenizer)
+            feature_datas = build_data_mrc(data, max_seq_len, tokenizer)
         else:
             raise ValueError(data_format)
-        return feature_data
+        return feature_datas
 
     def __len__(self):
         return len(self._data)
@@ -428,7 +408,7 @@ class TorchMTDNNModel(object):
             test_metrics, test_predictions, scores, golds, test_ids = eval_model(model=self.model, data=test_data,
                                                                                  metric_meta=self.tasks_info[task_name]['metric_meta'],
                                                                                  device=self.device,
-                                                                                 with_label=True)
+                                                                                 with_label=False)
             results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
             print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
 
