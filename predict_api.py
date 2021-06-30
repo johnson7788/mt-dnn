@@ -153,7 +153,7 @@ class SinglePredictDataset(Dataset):
             return feature_datas
 
         def build_data_premise_and_one_hypo(
-                data, dump_path, max_seq_len=512, tokenizer=None):
+                data, max_seq_len=512, tokenizer=None):
             """Build data of sentence pair tasks
             """
             feature_datas = []
@@ -203,7 +203,7 @@ class SinglePredictDataset(Dataset):
                 feature_datas.append(features)
             return feature_datas
 
-        def build_data_sequence(data, dump_path, max_seq_len=512, tokenizer=None, label_mapper=None):
+        def build_data_sequence(data, max_seq_len=512, tokenizer=None, label_mapper=None):
             feature_datas = []
             for idx, sample in enumerate(data):
                 ids = sample['uid']
@@ -230,7 +230,7 @@ class SinglePredictDataset(Dataset):
                 feature_datas.append(features)
             return feature_datas
 
-        def build_data_mrc(data, dump_path, max_seq_len=512, tokenizer=None, label_mapper=None, is_training=True):
+        def build_data_mrc(data, max_seq_len=512, tokenizer=None, label_mapper=None, is_training=True):
             unique_id = 1000000000  # TODO: this is from BERT, needed to remove it...
             feature_datas = []
             for example_index, sample in enumerate(data):
