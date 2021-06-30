@@ -48,7 +48,7 @@ class TorchMTDNNModel(object):
         :type verbose:
         """
         # 任务的配置文件
-        self.task_deffile == 'experiments/myexample/my_task_def.yml'
+        self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
         # absa 情感分析， dem8是8个维度的判断
         self.task_names = ['absa', 'dem8']
@@ -77,11 +77,16 @@ class TorchMTDNNModel(object):
         """
         assert os.path.exists(self.checkpoint), "模型文件不存在"
         if self.cuda:
-            self.state_dict = torch.load(self.checkpoint_path)
+            self.state_dict = torch.load(self.checkpoint)
         else:
-            self.state_dict = torch.load(self.checkpoint_path, map_location="cpu")
+            self.state_dict = torch.load(self.checkpoint, map_location="cpu")
         # 模型的配置参数, # 配置和模型保存到一起了
         self.config = self.state_dict['config']
+        # task_id的获取
+        for task_name in self.task_names:
+            train_datasets = self.config['train_datasets']
+            task_id = train_datasets.index(task_name)
+            self.tasks_info[task_name]['task_id'] = task_id
         self.config["cuda"] = self.cuda
         ## temp fix
         self.config['fp16'] = False
@@ -120,15 +125,12 @@ class TorchMTDNNModel(object):
 
     def load_data(self, task_name, data_path='data_my/canonical_data/bert-base-chinese/absa_test.json'):
         # load data， 加载数据集
-        test_data_set = SingleTaskDataset(path=data_path, is_train=False, maxlen=self.max_seq_len,
-                                          task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
-        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,
-                               pin_memory=self.cuda)
-
+        test_data_set = SingleTaskDataset(path=data_path, is_train=False, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         return test_data
 
     def eval(self, task_name):
-        test_data = self.load_data()
+        test_data = self.load_data(task_name)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
             # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
@@ -152,7 +154,7 @@ def absa_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.predict_batch(test_data, truncated=True)
+    results = model.eval(test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
@@ -169,7 +171,7 @@ def dem8_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.predict_batch(test_data, truncated=True)
+    results = model.eval(test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
