@@ -19,9 +19,13 @@ from torch.utils.data import DataLoader
 from data_utils.task_def import TaskType
 from experiments.exp_def import TaskDefs, EncoderModelType
 from torch.utils.data import Dataset, DataLoader, BatchSampler
-from mt_dnn.batcher import SingleTaskDataset, Collater
+from mt_dnn.batcher import Collater
+from experiments.mlm.mlm_utils import create_instances_from_document
 from mt_dnn.model import MTDNNModel
+import tasks
+import random
 from data_utils.metrics import calc_metrics
+import numpy as np
 from mt_dnn.inference import eval_model
 import logging.config
 
@@ -39,6 +43,116 @@ logger = logging.getLogger("Main")
 
 from flask import Flask, request, jsonify, abort
 app = Flask(__name__)
+
+class SinglePredictDataset(Dataset):
+    def __init__(self,
+                 path,
+                 is_train=False,
+                 maxlen=512,
+                 factor=1.0,
+                 task_id=0,
+                 task_def=None,
+                 bert_model='bert-base-uncased',
+                 do_lower_case=True,
+                 masked_lm_prob=0.15,
+                 seed=13,
+                 short_seq_prob=0.1,
+                 max_seq_length=512,
+                 max_predictions_per_seq=80,
+                 printable=True):
+        data, tokenizer = self.load(path, is_train, maxlen, factor, task_def, bert_model, do_lower_case, printable=printable)
+        self._data = data
+        self._tokenizer = tokenizer
+        self._task_id = task_id
+        self._task_def = task_def
+        # below is for MLM
+        if self._task_def.task_type is TaskType.MaskLM:
+            assert tokenizer is not None
+        # init vocab words
+        self._vocab_words = None if tokenizer is None else list(self._tokenizer.vocab.keys())
+        self._masked_lm_prob = masked_lm_prob
+        self._seed = seed
+        self._short_seq_prob = short_seq_prob
+        self._max_seq_length = max_seq_length
+        self._max_predictions_per_seq = max_predictions_per_seq
+        self._rng = random.Random(seed)
+        self.maxlen = maxlen
+
+    def get_task_id(self):
+        return self._task_id
+
+    @staticmethod
+    def load(path, is_train=True, maxlen=512, factor=1.0, task_def=None, bert_model='bert-base-uncased', do_lower_case=True, printable=True):
+        task_type = task_def.task_type
+        assert task_type is not None
+
+        if task_type == TaskType.MaskLM:
+            def load_mlm_data(path):
+                from pytorch_pretrained_bert.tokenization import BertTokenizer
+                tokenizer = BertTokenizer.from_pretrained(bert_model,
+                                                          do_lower_case=do_lower_case)
+                vocab_words = list(tokenizer.vocab.keys())
+                data = load_loose_json(path)
+                docs = []
+                for doc in data:
+                    paras = doc['text'].split('\n\n')
+                    paras = [para.strip() for para in paras if len(para.strip()) > 0]
+                    tokens = [tokenizer.tokenize(para) for para in paras]
+                    docs.append(tokens)
+                return docs, tokenizer
+            return load_mlm_data(path)
+
+        with open(path, 'r', encoding='utf-8') as reader:
+            data = []
+            cnt = 0
+            for line in reader:
+                sample = json.loads(line)
+                sample['factor'] = factor
+                cnt += 1
+                if is_train:
+                    task_obj = tasks.get_task_obj(task_def)
+                    if task_obj is not None and not task_obj.input_is_valid_sample(sample, maxlen):
+                        continue
+                    if (task_type == TaskType.Ranking) and (len(sample['token_id'][0]) > maxlen or len(sample['token_id'][1]) > maxlen):
+                        continue
+                    if (task_type != TaskType.Ranking) and (len(sample['token_id']) > maxlen):
+                        continue
+                data.append(sample)
+            if printable:
+                print('Loaded {} samples out of {}'.format(len(data), cnt))
+        return data, None
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, idx):
+        if self._task_def.task_type == TaskType.MaskLM:
+            # create a MLM instance
+            instances = create_instances_from_document(self._data,
+                                                       idx,
+                                                       self._max_seq_length,
+                                                       self._short_seq_prob,
+                                                       self._masked_lm_prob,
+                                                       self._max_predictions_per_seq,
+                                                       self._vocab_words,
+                                                       self._rng)
+            instance_ids = list(range(0, len(instances)))
+            choice = np.random.choice(instance_ids, 1)[0]
+            instance = instances[choice]
+            labels = self._tokenizer.convert_tokens_to_ids(instance.masked_lm_labels)
+            position = instance.masked_lm_positions
+            labels = [lab if idx in position else -1 for idx, lab in enumerate(labels)]
+            sample = {'token_id': self._tokenizer.convert_tokens_to_ids(instance.tokens),
+                      'type_id': instance.segment_ids,
+                      'nsp_lab': 1 if instance.is_random_next else 0,
+                      'position': instance.masked_lm_positions,
+                      'label': labels,
+                      'uid': idx}
+            return {"task": {"task_id": self._task_id, "task_def": self._task_def},
+                    "sample": sample}
+        else:
+            return {"task": {"task_id": self._task_id, "task_def": self._task_def},
+                    "sample": self._data[idx]}
 
 class TorchMTDNNModel(object):
     def __init__(self, verbose=False):
@@ -125,7 +239,7 @@ class TorchMTDNNModel(object):
 
     def load_data(self, task_name, data_path):
         # load data， 加载数据集
-        test_data_set = SingleTaskDataset(path=data_path, is_train=False, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        test_data_set = SinglePredictDataset(path=data_path, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         return test_data
 
@@ -146,7 +260,8 @@ class TorchMTDNNModel(object):
             print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
 
     def predict(self, task_name, data):
-        pass
+        assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
+
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
