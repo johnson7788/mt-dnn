@@ -53,12 +53,12 @@ app = Flask(__name__)
 class SinglePredictDataset(Dataset):
     def __init__(self,
                  data,
+                 tokenizer,
                  is_train=False,
                  maxlen=512,
                  factor=1.0,
                  task_id=0,
                  task_def=None,
-                 bert_model='bert-base-uncased',
                  do_lower_case=True,
                  masked_lm_prob=0.15,
                  seed=13,
@@ -66,7 +66,8 @@ class SinglePredictDataset(Dataset):
                  max_seq_length=512,
                  max_predictions_per_seq=80,
                  printable=True):
-        data, tokenizer = self.load(data, is_train, maxlen, factor, task_def, bert_model, do_lower_case, printable=printable)
+        data = self.build_data(data=data,tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab)
+        data, tokenizer = self.load(data, is_train, maxlen, factor, task_def, printable=printable)
         self._data = data
         self._tokenizer = tokenizer
         self._task_id = task_id
@@ -133,7 +134,7 @@ class SinglePredictDataset(Dataset):
         return input_ids, attention_mask, token_type_ids
 
     @staticmethod
-    def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
+    def build_data(data, tokenizer, data_format=DataFormat.PremiseOnly,
                    max_seq_len=512, lab_dict=None, do_padding=False, truncation=True):
         def build_data_premise_only(
                 data, dump_path, max_seq_len=512, tokenizer=None):
@@ -144,7 +145,7 @@ class SinglePredictDataset(Dataset):
                     ids = sample['uid']
                     premise = sample['premise']
                     label = sample['label']
-                    input_ids, input_mask, type_ids = feature_extractor(tokenizer, premise, max_length=max_seq_len)
+                    input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, max_length=max_seq_len)
                     features = {
                         'uid': ids,
                         'label': label,
@@ -163,7 +164,7 @@ class SinglePredictDataset(Dataset):
                     premise = sample['premise']
                     hypothesis = sample['hypothesis']
                     label = sample['label']
-                    input_ids, input_mask, type_ids = feature_extractor(tokenizer, premise, text_b=hypothesis,
+                    input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
                                                                         max_length=max_seq_len)
                     features = {
                         'uid': ids,
@@ -187,7 +188,7 @@ class SinglePredictDataset(Dataset):
                     type_ids_list = []
                     attention_mask_list = []
                     for hypothesis in hypothesis_list:
-                        input_ids, input_mask, type_ids = feature_extractor(tokenizer,
+                        input_ids, input_mask, type_ids = self.feature_extractor(tokenizer,
                                                                             premise, hypothesis, max_length=max_seq_len)
                         input_ids_list.append(input_ids)
                         type_ids_list.append(type_ids)
@@ -347,6 +348,7 @@ class TorchMTDNNModel(object):
         self.max_seq_len = 512
         # 最大的batch_size
         self.predict_batch_size = 64
+        self.tokenize_model = 'bert-base-chinese',
         # 训练好的模型的存放位置
         self.checkpoint = 'trained_model/absa_dem8.pt'
         # 是否放GPU
@@ -382,6 +384,8 @@ class TorchMTDNNModel(object):
         self.config['answer_opt'] = 0
         self.config['adv_train'] = False
         del self.state_dict['optimizer']
+        # 初始化tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenize_model)
         # 初始化模型
         self.model = MTDNNModel(self.config, device=self.device, state_dict=self.state_dict)
         # encoder的类型 EncoderModelType.BERT
@@ -412,18 +416,10 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta
             }
 
-    def load_data(self, task_name, data_path):
-        # load data， 加载数据集
-        test_data_set = SinglePredictDataset(path=data_path, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+    def predict(self, task_name, data):
+        assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
+        test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
-        return test_data
-
-    def eval(self, task_name):
-        if task_name == "dem8":
-            data_path = "data_my/canonical_data/bert-base-chinese/dem8_test.json"
-        else:
-            data_path = 'data_my/canonical_data/bert-base-chinese/absa_test.json'
-        test_data = self.load_data(task_name, data_path)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
             # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
@@ -433,9 +429,6 @@ class TorchMTDNNModel(object):
                                                                                  with_label=True)
             results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
             print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
-
-    def predict(self, task_name, data):
-        assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
 
 
 @app.route("/api/absa_predict", methods=['POST'])
