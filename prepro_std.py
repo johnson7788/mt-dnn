@@ -48,6 +48,31 @@ def feature_extractor(tokenizer, text_a, text_b=None, max_length=512, do_padding
 
 def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
                max_seq_len=MAX_SEQ_LEN, lab_dict=None, do_padding=False, truncation=True):
+    """
+
+    :param data: [{'uid': '0', 'label': 0, 'premise': '合盖子的时候有种塑料感', 'hypothesis': '塑料'}, {}]
+    :type data:
+    :param dump_path:
+    :type dump_path:
+    :param tokenizer:
+    :type tokenizer:
+    :param data_format:
+    :type data_format:
+    :param max_seq_len:
+    :type max_seq_len:
+    :param lab_dict: <data_utils.vocab.Vocabulary object at 0x7f4736cd2100>
+        INIT_LEN = {int} 4
+        ind2tok = {dict: 3} {0: '消极', 1: '中性', 2: '积极'}
+        neat = {bool} True
+        tok2ind = {dict: 3} {'消极': 0, '中性': 1, '积极': 2}
+    :type lab_dict:
+    :param do_padding:
+    :type do_padding:
+    :param truncation:
+    :type truncation:
+    :return:
+    :rtype:
+    """
     def build_data_premise_only(
             data, dump_path, max_seq_len=MAX_SEQ_LEN, tokenizer=None):
         """Build data of single sentence tasks
