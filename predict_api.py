@@ -123,14 +123,18 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta
             }
 
-    def load_data(self, task_name, data_path='data_my/canonical_data/bert-base-chinese/absa_test.json'):
+    def load_data(self, task_name, data_path):
         # load data， 加载数据集
         test_data_set = SingleTaskDataset(path=data_path, is_train=False, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         return test_data
 
     def eval(self, task_name):
-        test_data = self.load_data(task_name)
+        if task_name == "dem8":
+            data_path = "data_my/canonical_data/bert-base-chinese/dem8_test.json"
+        else:
+            data_path = 'data_my/canonical_data/bert-base-chinese/absa_test.json'
+        test_data = self.load_data(task_name, data_path)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
             # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
@@ -141,6 +145,8 @@ class TorchMTDNNModel(object):
             results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
             print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
 
+    def predict(self, task_name, data):
+        pass
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -154,7 +160,7 @@ def absa_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.eval(test_data)
+    results = model.predict(task_name='absa', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
@@ -171,7 +177,7 @@ def dem8_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.eval(test_data)
+    results = model.predict(task_name='dem8', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
