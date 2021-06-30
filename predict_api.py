@@ -27,6 +27,12 @@ import random
 from data_utils.metrics import calc_metrics
 import numpy as np
 from mt_dnn.inference import eval_model
+from data_utils.task_def import TaskType, DataFormat
+from data_utils.log_wrapper import create_logger
+from experiments.exp_def import TaskDefs
+from experiments.squad import squad_utils
+from transformers import AutoTokenizer
+
 import logging.config
 
 logging.config.dictConfig({
@@ -44,9 +50,192 @@ logger = logging.getLogger("Main")
 from flask import Flask, request, jsonify, abort
 app = Flask(__name__)
 
+
+def feature_extractor(tokenizer, text_a, text_b=None, max_length=512, do_padding=False):
+    inputs = tokenizer(
+        text_a,
+        text_b,
+        add_special_tokens=True,
+        max_length=max_length,
+        truncation=True,
+        padding=do_padding
+    )
+    input_ids = inputs["input_ids"]
+    token_type_ids = inputs["token_type_ids"] if "token_type_ids" in inputs else [0] * len(input_ids)
+
+    # The mask has 1 for real tokens and 0 for padding tokens. Only real
+    # tokens are attended to.
+    attention_mask = inputs["attention_mask"]
+    if do_padding:
+        assert len(input_ids) == max_length, "Error with input length {} vs {}".format(len(input_ids), max_length)
+        assert len(attention_mask) == max_length, "Error with input length {} vs {}".format(len(attention_mask), max_length)
+        assert len(token_type_ids) == max_length, "Error with input length {} vs {}".format(len(token_type_ids), max_length)
+    return input_ids, attention_mask, token_type_ids
+
+def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
+               max_seq_len=512, lab_dict=None, do_padding=False, truncation=True):
+    def build_data_premise_only(
+            data, dump_path, max_seq_len=512, tokenizer=None):
+        """Build data of single sentence tasks
+        """
+        with open(dump_path, 'w', encoding='utf-8') as writer:
+            for idx, sample in enumerate(data):
+                ids = sample['uid']
+                premise = sample['premise']
+                label = sample['label']
+                input_ids, input_mask, type_ids = feature_extractor(tokenizer, premise, max_length=max_seq_len)
+                features = {
+                    'uid': ids,
+                    'label': label,
+                    'token_id': input_ids,
+                    'type_id': type_ids,
+                    'attention_mask': input_mask}
+                writer.write('{}\n'.format(json.dumps(features)))
+
+    def build_data_premise_and_one_hypo(
+            data, dump_path, max_seq_len=512, tokenizer=None):
+        """Build data of sentence pair tasks
+        """
+        with open(dump_path, 'w', encoding='utf-8') as writer:
+            for idx, sample in enumerate(data):
+                ids = sample['uid']
+                premise = sample['premise']
+                hypothesis = sample['hypothesis']
+                label = sample['label']
+                input_ids, input_mask, type_ids = feature_extractor(tokenizer, premise, text_b=hypothesis, max_length=max_seq_len)
+                features = {
+                    'uid': ids,
+                    'label': label,
+                    'token_id': input_ids,
+                    'type_id': type_ids,
+                    'attention_mask': input_mask}
+                writer.write('{}\n'.format(json.dumps(features)))
+
+    def build_data_premise_and_multi_hypo(
+            data, dump_path, max_seq_len=512, tokenizer=None):
+        """Build QNLI as a pair-wise ranking task
+        """
+        with open(dump_path, 'w', encoding='utf-8') as writer:
+            for idx, sample in enumerate(data):
+                ids = sample['uid']
+                premise = sample['premise']
+                hypothesis_list = sample['hypothesis']
+                label = sample['label']
+                input_ids_list = []
+                type_ids_list = []
+                attention_mask_list = []
+                for hypothesis in hypothesis_list:
+                    input_ids, input_mask, type_ids = feature_extractor(tokenizer,
+                                                                        premise, hypothesis, max_length=max_seq_len)
+                    input_ids_list.append(input_ids)
+                    type_ids_list.append(type_ids)
+                    attention_mask_list.append(input_mask)
+                features = {
+                    'uid': ids,
+                    'label': label,
+                    'token_id': input_ids_list,
+                    'type_id': type_ids_list,
+                    'ruid': sample['ruid'],
+                    'olabel': sample['olabel'],
+                    'attention_mask': attention_mask_list}
+                writer.write('{}\n'.format(json.dumps(features)))
+
+    def build_data_sequence(data, dump_path, max_seq_len=512, tokenizer=None, label_mapper=None):
+        with open(dump_path, 'w', encoding='utf-8') as writer:
+            for idx, sample in enumerate(data):
+                ids = sample['uid']
+                premise = sample['premise']
+                tokens = []
+                labels = []
+                for i, word in enumerate(premise):
+                    subwords = tokenizer.tokenize(word)
+                    tokens.extend(subwords)
+                    for j in range(len(subwords)):
+                        if j == 0:
+                            labels.append(sample['label'][i])
+                        else:
+                            labels.append(label_mapper['X'])
+                if len(premise) >  max_seq_len - 2:
+                    tokens = tokens[:max_seq_len - 2]
+                    labels = labels[:max_seq_len - 2]
+
+                label = [label_mapper['CLS']] + labels + [label_mapper['SEP']]
+                input_ids = tokenizer.convert_tokens_to_ids([tokenizer.cls_token] + tokens + [tokenizer.sep_token])
+                assert len(label) == len(input_ids)
+                type_ids = [0] * len(input_ids)
+                features = {'uid': ids, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
+                writer.write('{}\n'.format(json.dumps(features)))
+
+    def build_data_mrc(data, dump_path, max_seq_len=512, tokenizer=None, label_mapper=None, is_training=True):
+        with open(dump_path, 'w', encoding='utf-8') as writer:
+            unique_id = 1000000000 # TODO: this is from BERT, needed to remove it...
+            for example_index, sample in enumerate(data):
+                ids = sample['uid']
+                doc = sample['premise']
+                query = sample['hypothesis']
+                label = sample['label']
+                doc_tokens, cw_map = squad_utils.token_doc(doc)
+                answer_start, answer_end, answer, is_impossible = squad_utils.parse_squad_label(label)
+                answer_start_adjusted, answer_end_adjusted = squad_utils.recompute_span(answer, answer_start, cw_map)
+                is_valid = squad_utils.is_valid_answer(doc_tokens, answer_start_adjusted, answer_end_adjusted, answer)
+                if not is_valid: continue
+                """
+                TODO --xiaodl: support RoBERTa
+                """
+                feature_list = squad_utils.mrc_feature(tokenizer,
+                                        unique_id,
+                                        example_index,
+                                        query,
+                                        doc_tokens,
+                                        answer_start_adjusted,
+                                        answer_end_adjusted,
+                                        is_impossible,
+                                        max_seq_len,
+                                        512,
+                                        180,
+                                        answer_text=answer,
+                                        is_training=True)
+                unique_id += len(feature_list)
+                for feature in feature_list:
+                    so = json.dumps({'uid': ids,
+                                'token_id' : feature.input_ids,
+                                'mask': feature.input_mask,
+                                'type_id': feature.segment_ids,
+                                'example_index': feature.example_index,
+                                'doc_span_index':feature.doc_span_index,
+                                'tokens': feature.tokens,
+                                'token_to_orig_map': feature.token_to_orig_map,
+                                'token_is_max_context': feature.token_is_max_context,
+                                'start_position': feature.start_position,
+                                'end_position': feature.end_position,
+                                'label': feature.is_impossible,
+                                'doc': doc,
+                                'doc_offset': feature.doc_offset,
+                                'answer': [answer]})
+                    writer.write('{}\n'.format(so))
+
+    if data_format == DataFormat.PremiseOnly:
+        build_data_premise_only(
+            data,
+            dump_path,
+            max_seq_len,
+            tokenizer)
+    elif data_format == DataFormat.PremiseAndOneHypothesis:
+        build_data_premise_and_one_hypo(
+            data, dump_path, max_seq_len, tokenizer)
+    elif data_format == DataFormat.PremiseAndMultiHypothesis:
+        build_data_premise_and_multi_hypo(
+            data, dump_path, max_seq_len, tokenizer)
+    elif data_format == DataFormat.Seqence:
+        build_data_sequence(data, dump_path, max_seq_len, tokenizer, lab_dict)
+    elif data_format == DataFormat.MRC:
+        build_data_mrc(data, dump_path, max_seq_len, tokenizer)
+    else:
+        raise ValueError(data_format)
+
 class SinglePredictDataset(Dataset):
     def __init__(self,
-                 path,
+                 data,
                  is_train=False,
                  maxlen=512,
                  factor=1.0,
@@ -60,14 +249,11 @@ class SinglePredictDataset(Dataset):
                  max_seq_length=512,
                  max_predictions_per_seq=80,
                  printable=True):
-        data, tokenizer = self.load(path, is_train, maxlen, factor, task_def, bert_model, do_lower_case, printable=printable)
+        data, tokenizer = self.load(data, is_train, maxlen, factor, task_def, bert_model, do_lower_case, printable=printable)
         self._data = data
         self._tokenizer = tokenizer
         self._task_id = task_id
         self._task_def = task_def
-        # below is for MLM
-        if self._task_def.task_type is TaskType.MaskLM:
-            assert tokenizer is not None
         # init vocab words
         self._vocab_words = None if tokenizer is None else list(self._tokenizer.vocab.keys())
         self._masked_lm_prob = masked_lm_prob
@@ -82,26 +268,9 @@ class SinglePredictDataset(Dataset):
         return self._task_id
 
     @staticmethod
-    def load(path, is_train=True, maxlen=512, factor=1.0, task_def=None, bert_model='bert-base-uncased', do_lower_case=True, printable=True):
+    def load(path, is_train=True, maxlen=512, factor=1.0, task_def=None, printable=True):
         task_type = task_def.task_type
         assert task_type is not None
-
-        if task_type == TaskType.MaskLM:
-            def load_mlm_data(path):
-                from pytorch_pretrained_bert.tokenization import BertTokenizer
-                tokenizer = BertTokenizer.from_pretrained(bert_model,
-                                                          do_lower_case=do_lower_case)
-                vocab_words = list(tokenizer.vocab.keys())
-                data = load_loose_json(path)
-                docs = []
-                for doc in data:
-                    paras = doc['text'].split('\n\n')
-                    paras = [para.strip() for para in paras if len(para.strip()) > 0]
-                    tokens = [tokenizer.tokenize(para) for para in paras]
-                    docs.append(tokens)
-                return docs, tokenizer
-            return load_mlm_data(path)
-
         with open(path, 'r', encoding='utf-8') as reader:
             data = []
             cnt = 0
