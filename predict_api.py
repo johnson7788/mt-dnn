@@ -395,7 +395,8 @@ class TorchMTDNNModel(object):
                 "task_def": task_def,
                 "data_type": data_type,
                 "task_type": task_type,
-                "metric_meta": metric_meta
+                "metric_meta": metric_meta,
+                "id2tok": task_def.label_vocab.ind2tok,
             }
 
     def predict_batch(self, task_name, data, with_label=False):
@@ -424,7 +425,10 @@ class TorchMTDNNModel(object):
                 predictions, scores = squad_utils.select_answers(ids, predictions, scores)
             if with_label:
                 metrics = calc_metrics(self.tasks_info[task_name]['metric_meta'], golds, predictions, scores, label_mapper=None)
-            print(f"预测结果{predictions}")
+            id2tok = self.tasks_info[task_name]['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        return predict_labels
 
 
 @app.route("/api/absa_predict", methods=['POST'])
