@@ -243,7 +243,7 @@ class SinglePredictDataset(Dataset):
                                                        is_training=True)
                 unique_id += len(feature_list)
                 for f_idx, feature in enumerate(feature_list):
-                    so = json.dumps({'uid': f"{idx}_{f_idx}",
+                    so = json.dumps({'uid': f"{example_index}_{f_idx}",
                                      'token_id': feature.input_ids,
                                      'mask': feature.input_mask,
                                      'type_id': feature.segment_ids,
@@ -374,7 +374,6 @@ class TorchMTDNNModel(object):
         encoder_type = self.config.get('encoder_type', EncoderModelType.BERT)
         # collator 函数
         self.collater = Collater(is_train=False, encoder_type=encoder_type)
-
     def load_task(self):
         """
         读取任务的配置文件
@@ -398,7 +397,6 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta,
                 "id2tok": task_def.label_vocab.ind2tok,
             }
-
     def predict_batch(self, task_name, data, with_label=False):
         assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
         test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
@@ -429,7 +427,6 @@ class TorchMTDNNModel(object):
             predict_labels = [id2tok[p] for p in predictions]
             print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
         return predict_labels
-
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
