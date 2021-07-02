@@ -2,6 +2,15 @@
 ## 接口地址
 /api/dem8
 
+## 接收的参数的格式
+type：类型是8种类型中的一种
+[content:str, aspect_keywords:list, type:str, ...]
+
+## 返回的结果格式
+[[keyword1_info:dict, keyword2_info:dict],...]
+keyword_info: {'keyword': keyword:str, 'labels': labels:list, 'locations': location:list, 'type': type:str}
+location返回的是这个keyword的start和end的位置
+
 ## POST请求
 输入示例:
 ```angular2html
