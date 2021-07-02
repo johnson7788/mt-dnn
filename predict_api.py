@@ -327,6 +327,27 @@ class TorchMTDNNModel(object):
         self.tokenize_model = 'bert-base-chinese'
         # 训练好的模型的存放位置
         self.checkpoint = 'trained_model/absa_dem8.pt'
+        self.type_to_prefix = {
+            "成分": '成分:',
+            "功效": '功效:',
+            "香味":"香味:",
+            "包装": "包装:",
+            "肤感": "肤感:",
+            "促销":"促销:",
+            "服务":"服务:",
+            "价格":"价格:",
+            "component": '成分:',
+            "effect": '功效:',
+            "fragrance": "香味:",
+            "pack": "包装:",
+            "skin": "肤感:",
+            "promotion": "促销:",
+            "service": "服务:",
+            "price": "价格:",
+        }
+        self.left_max_seq_len = 40
+        self.aspect_max_seq_len = 10
+        self.right_max_seq_len = 40
         # 是否放GPU
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -391,48 +412,51 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta,
                 "id2tok": task_def.label_vocab.ind2tok,
             }
-    def aspect_base_truncate(self, data, left_max_seq_len=40, aspect_max_seq_len=10, right_max_seq_len=40, prefix_data=None):
+    def truncate(self,input_text, max_len, trun_post='post'):
+        """
+        实施截断数据
+        :param input_text:
+        :param max_len:   eg: 15
+        :param trun_post: 截取方向，向前还是向后截取，
+                        "pre"：截取前面的， "post"：截取后面的
+        :return:
+        """
+        if max_len is not None and len(input_text) > max_len:
+            if trun_post == "post":
+                return input_text[-max_len:]
+            else:
+                return input_text[:max_len]
+        else:
+            return input_text
+    def aspect_truncate(self, content, aspect, aspect_start, aspect_end):
+        """
+        截断函数
+        :param content:
+        :param aspect:
+        :param aspect_start:
+        :param aspect_end:
+        :return:
+        """
+        text_left = content[:aspect_start]
+        text_right = content[aspect_end:]
+        text_left = self.truncate(text_left, self.left_max_seq_len)
+        aspect = self.truncate(aspect, self.aspect_max_seq_len)
+        text_right = self.truncate(text_right, self.right_max_seq_len, trun_post="pre")
+        new_content = text_left + aspect + text_right
+        return new_content
+    def aspect_base_truncate(self, data, prefix_data=None, search_first=True):
         """aspect的类型的任务的truncate
         对数据做truncate
         :param data:针对不同类型的数据进行不同的截断
+        :param search_first: 是否只搜索第一个匹配的关键字
         :return:返回列表，是截断后的文本，aspect
         所以如果一个句子中有多个aspect关键字，那么就会产生多个截断的文本+关键字，组成的列表，会产生多个预测结果
         """
-        def truncate(input_text, max_len, trun_post='post'):
-            """
-            实施截断数据
-            :param input_text:
-            :param max_len:   eg: 15
-            :param trun_post: 截取方向，向前还是向后截取，
-                            "pre"：截取前面的， "post"：截取后面的
-            :return:
-            """
-            if max_len is not None and len(input_text) > max_len:
-                if trun_post == "post":
-                    return input_text[-max_len:]
-                else:
-                    return input_text[:max_len]
-            else:
-                return input_text
-        def aspect_truncate(content,aspect,aspect_start,aspect_end):
-            """
-            截断函数
-            :param content:
-            :param aspect:
-            :param aspect_start:
-            :param aspect_end:
-            :return:
-            """
-            text_left = content[:aspect_start]
-            text_right = content[aspect_end:]
-            text_left = truncate(text_left, left_max_seq_len)
-            aspect = truncate(aspect, aspect_max_seq_len)
-            text_right = truncate(text_right, right_max_seq_len, trun_post="pre")
-            new_content = text_left + aspect + text_right
-            return new_content
         contents = []
         #保存关键字的索引，[(start_idx, end_idx)...]
         locations = []
+        # 搜索到的关键字的数量
+        keywords_index = [0] * len(data)
         for idx, one_data in enumerate(data):
             if len(one_data) == 2 or len(one_data) == 3:
                 #不带aspect关键字的位置信息，自己查找位置
@@ -440,18 +464,21 @@ class TorchMTDNNModel(object):
                 iter = re.finditer(aspect, content)
                 for m in iter:
                     aspect_start, aspect_end = m.span()
-                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
                     if prefix_data:
                         prefix = prefix_data[idx]
                         new_content = prefix + new_content
                     contents.append((new_content, aspect))
                     locations.append((aspect_start,aspect_end))
-                    #只取第一个关键字的数据
-                    break
+                    if search_first:
+                        #只取第一个关键字的数据
+                        break
+                    else:
+                        keywords_index[idx] += 1
             elif len(one_data) == 4:
                 # 不带label时，长度是4，
                 content, aspect, aspect_start, aspect_end = one_data
-                new_content = aspect_truncate(content, aspect, aspect_start,aspect_end)
+                new_content = self.aspect_truncate(content, aspect, aspect_start,aspect_end)
                 if prefix_data:
                     prefix = prefix_data[idx]
                     new_content = prefix + new_content
@@ -459,7 +486,7 @@ class TorchMTDNNModel(object):
                 locations.append((aspect_start, aspect_end))
             elif len(one_data) == 5:
                 content, aspect, aspect_start, aspect_end, label = one_data
-                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
                 if prefix_data:
                     prefix = prefix_data[idx]
                     new_content = prefix + new_content
@@ -467,7 +494,40 @@ class TorchMTDNNModel(object):
                 locations.append((aspect_start, aspect_end))
             else:
                 raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
-        return contents, locations
+        if search_first:
+            return contents, locations
+        else:
+            return contents, locations, keywords_index
+    def dem8_truncate(self, data, prefix_data):
+        """
+        多个关键字的aspect的trunacate方法
+        :param data:针对不同类型的数据进行不同的截断
+        :param search_first: 是否只搜索第一个匹配的关键字
+        :return:返回列表，是截断后的文本，aspect
+        所以如果一个句子中有多个aspect关键字，那么就会产生多个截断的文本+关键字，组成的列表，会产生多个预测结果
+        """
+        contents = []
+        #保存关键字的索引，[(start_idx, end_idx)...]
+        locations = []
+        # 每个句子的搜索到的关键字的数量
+        aspects_index = {}
+        for idx, one_data in enumerate(data):
+            #不带aspect关键字的位置信息，自己查找位置,aspects 是一个列表，是多个关键字
+            content, aspects = one_data[0], one_data[1]
+            aspects_index[idx] = len(aspects) * [0]
+            for aidx, aspect in enumerate(aspects):
+                iter = re.finditer(aspect, content)
+                for m in iter:
+                    aspect_start, aspect_end = m.span()
+                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    if prefix_data:
+                        prefix = prefix_data[idx]
+                        new_content = prefix + new_content
+                    contents.append((new_content, aspect))
+                    locations.append((aspect_start,aspect_end))
+                    aspects_index[idx][aidx] += 1
+        return contents, locations, aspects_index
+
     def get_dem8_prefix(self, data):
         """
         获取8个维度的分类任务的前缀, 每个data的类型可能不同，那么前缀也可能不同
@@ -476,28 +536,10 @@ class TorchMTDNNModel(object):
         :return: prefix的data组成的列表
         :rtype: list
         """
-        type_to_prefix = {
-            "成分": '成分:',
-            "功效": '功效:',
-            "香味":"香味:",
-            "包装": "包装:",
-            "肤感": "肤感:",
-            "促销":"促销:",
-            "服务":"服务:",
-            "价格":"价格:",
-            "component": '成分:',
-            "effect": '功效:',
-            "fragrance": "香味:",
-            "pack": "包装:",
-            "skin": "肤感:",
-            "promotion": "促销:",
-            "service": "服务:",
-            "price": "价格:",
-        }
         prefix_data = []
         for d in data:
             type_name = d[2]
-            prefix_name = type_to_prefix[type_name]
+            prefix_name = self.type_to_prefix[type_name]
             prefix_data.append(prefix_name)
         return prefix_data
     def predict_batch(self, task_name, data, with_label=False, aspect_base=True):
@@ -523,7 +565,6 @@ class TorchMTDNNModel(object):
             data, locations = self.aspect_base_truncate(data, prefix_data=prefix_data)
         test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
-        task_type = TaskType.Classification
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
             # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
@@ -538,21 +579,59 @@ class TorchMTDNNModel(object):
                 golds.extend(gold)
                 scores.extend(score)
                 ids.extend(batch_info['uids'])
-
-            if task_type == TaskType.Span:
-                from experiments.squad import squad_utils
-                golds = squad_utils.merge_answers(ids, golds)
-                predictions, scores = squad_utils.select_answers(ids, predictions, scores)
             if with_label:
                 metrics = calc_metrics(self.tasks_info[task_name]['metric_meta'], golds, predictions, scores, label_mapper=None)
             id2tok = self.tasks_info[task_name]['id2tok']
             predict_labels = [id2tok[p] for p in predictions]
             print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
         if aspect_base:
-            results = list(zip(predict_labels,scores,data, locations))
+            results = list(zip(predict_labels, scores, data, locations))
         else:
             results = list(zip(predict_labels, scores, data))
         return results
+    def predict_dem8(self, data):
+        for idx, one_data in enumerate(data):
+            if len(one_data) != 3:
+                return f"错误: 第{idx}条数据的结构不对，结构必须是[[句子，aspect关键字，类型]，...]"
+            word_type = one_data[2]
+            if not self.type_to_prefix.get(word_type):
+                return f"错误: 第{idx}条数据给了不支持的判断的单词类型,{word_type}"
+        prefix_data = self.get_dem8_prefix(data)
+        truncate_data, locations, aspects_index = self.dem8_truncate(data, prefix_data=prefix_data)
+        test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info['dem8']['task_id'], task_def=self.tasks_info['dem8']['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+            id2tok = self.tasks_info['dem8']['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        result = []
+        #开始索引的位置
+        start_idx = 0
+        for sentence_idx, key_nums in aspects_index.items():
+            data_one = []
+            for k_idx, key_num in enumerate(key_nums):
+                end_idx = start_idx + key_num
+                keyword_data = {
+                    'keyword': data[sentence_idx][1][k_idx],
+                    'type': data[sentence_idx][2],
+                    'locations': locations[start_idx:end_idx],
+                    'labels': predict_labels[start_idx:end_idx],
+                }
+                start_idx = end_idx
+                data_one.append(keyword_data)
+            result.append(data_one)
+        return result
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -584,6 +663,22 @@ def dem8_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     results = model.predict_batch(task_name='dem8', data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/dem8", methods=['POST'])
+def dem8():
+    """
+    8个维度的预测，接收POST请求，获取data参数, data信息包含aspect关键在在句子中的位置信息，方便我们截取，我们截取aspect关键字的前后一定的字符作为输入
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [['使用感受：补水效果好 皮肤一种舒服的状态适合肤质：油性干性的都适合补水，熬夜的效果修复更好吸收效果：吸收快 刚好合适保湿效果：持久不油腻其他特色：包装精致性价比高 品牌值得信赖一直用一叶子的产品喜欢 点赞',['保湿', '补水', '熬夜'], '成分'], ['产品质感：质感非常好 质地很清爽 不拔干 适合肤质：我是敏感肌 用了都没什么问题的 应该是都可以用的卸妆力度：很好用的 这都数不清是第几瓶了 无线回购的好产品 洁净效果：卸妆的同时 还可以补水噢 容量大小：超级大的一瓶 可以用好久其他特色：物美价廉的产品 真的是很好用',['质感', '质地', '补水', '卸妆'],'功效']]
+    Returns: 返回格式是[[{'keyword': '保湿','type':'成分',locations: [(5,7), (30,32)], labels:['是','否']},{'keyword':'补水',... }],[...]]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    results = model.predict_dem8(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
