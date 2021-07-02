@@ -548,7 +548,11 @@ class TorchMTDNNModel(object):
             id2tok = self.tasks_info[task_name]['id2tok']
             predict_labels = [id2tok[p] for p in predictions]
             print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
-        return predict_labels
+        if aspect_base:
+            results = list(zip(predict_labels,scores,data, locations))
+        else:
+            results = list(zip(predict_labels, scores, data))
+        return results
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
