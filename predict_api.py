@@ -10,25 +10,19 @@
 # 包括预测接口api
 # /api/predict
 ######################################################
-
-import argparse
 import json
 import os
+import re
 import torch
-from torch.utils.data import DataLoader
-from data_utils.task_def import TaskType
 from experiments.exp_def import TaskDefs, EncoderModelType
 from torch.utils.data import Dataset, DataLoader, BatchSampler
 from mt_dnn.batcher import Collater
 from experiments.mlm.mlm_utils import create_instances_from_document
 from mt_dnn.model import MTDNNModel
-import tasks
 import random
 from data_utils.metrics import calc_metrics
 import numpy as np
-from mt_dnn.inference import eval_model
 from data_utils.task_def import TaskType, DataFormat
-from data_utils.log_wrapper import create_logger
 from experiments.exp_def import TaskDefs
 from experiments.squad import squad_utils
 from transformers import AutoTokenizer
@@ -397,8 +391,122 @@ class TorchMTDNNModel(object):
                 "metric_meta": metric_meta,
                 "id2tok": task_def.label_vocab.ind2tok,
             }
-    def predict_batch(self, task_name, data, with_label=False):
+    def aspect_base_truncate(self, data, left_max_seq_len=40, aspect_max_seq_len=10, right_max_seq_len=40, prefix_name=None):
+        """aspect的类型的任务的truncate
+        对数据做truncate
+        :param data:针对不同类型的数据进行不同的截断
+        :return:返回列表，是截断后的文本，aspect
+        所以如果一个句子中有多个aspect关键字，那么就会产生多个截断的文本+关键字，组成的列表，会产生多个预测结果
+        """
+        def truncate(input_text, max_len, trun_post='post'):
+            """
+            实施截断数据
+            :param input_text:
+            :param max_len:   eg: 15
+            :param trun_post: 截取方向，向前还是向后截取，
+                            "pre"：截取前面的， "post"：截取后面的
+            :return:
+            """
+            if max_len is not None and len(input_text) > max_len:
+                if trun_post == "post":
+                    return input_text[-max_len:]
+                else:
+                    return input_text[:max_len]
+            else:
+                return input_text
+        def aspect_truncate(content,aspect,aspect_start,aspect_end):
+            """
+            截断函数
+            :param content:
+            :param aspect:
+            :param aspect_start:
+            :param aspect_end:
+            :return:
+            """
+            text_left = content[:aspect_start]
+            text_right = content[aspect_end:]
+            text_left = truncate(text_left, left_max_seq_len)
+            aspect = truncate(aspect, aspect_max_seq_len)
+            text_right = truncate(text_right, right_max_seq_len, trun_post="pre")
+            new_content = text_left + aspect + text_right
+            return new_content
+        contents = []
+        #保存关键字的索引，[(start_idx, end_idx)...]
+        locations = []
+        for one_data in data:
+            if len(one_data) == 2:
+                #不带aspect关键字的位置信息，自己查找位置
+                content, aspect = one_data
+                iter = re.finditer(aspect, content)
+                for m in iter:
+                    aspect_start, aspect_end = m.span()
+                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    contents.append((new_content, aspect))
+                    locations.append((aspect_start,aspect_end))
+            elif len(one_data) == 4:
+                # 不带label时，长度是4，
+                content, aspect, aspect_start, aspect_end = one_data
+                new_content = aspect_truncate(content, aspect, aspect_start,aspect_end)
+                contents.append((new_content, aspect))
+                locations.append((aspect_start, aspect_end))
+            elif len(one_data) == 5:
+                content, aspect, aspect_start, aspect_end, label = one_data
+                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                contents.append((new_content, aspect, label))
+                locations.append((aspect_start, aspect_end))
+            else:
+                raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
+        return contents, locations
+    def get_dem8_prefix(self, data):
+        """
+        获取8个维度的分类任务的前缀, 每个data的类型可能不同，那么前缀也可能不同
+        :param data:
+        :type data:
+        :return: prefix的data组成的列表
+        :rtype: list
+        """
+        type_to_prefix = {
+            "成分": '成分:',
+            "功效": '功效:',
+            "香味":"香味:",
+            "包装": "包装:",
+            "肤感": "肤感:",
+            "促销":"促销:",
+            "服务":"服务:",
+            "价格":"价格:",
+            "component": '成分:',
+            "effect": '功效:',
+            "fragrance": "香味:",
+            "pack": "包装:",
+            "skin": "肤感:",
+            "promotion": "促销:",
+            "service": "服务:",
+            "price": "价格:",
+        }
+        prefix_data = []
+        for d in data:
+            type_name = d[2]
+            prefix_name = type_to_prefix[type_name]
+            prefix_data.append(prefix_name)
+        return prefix_data
+    def predict_batch(self, task_name, data, with_label=False, aspect_base=True):
+        """
+        预测数据
+        :param task_name:
+        :type task_name:
+        :param data:
+        :type data:
+        :param with_label:  如果数据带了标签，那么打印metric
+        :type with_label:
+        :param aspect_base:  是否是aspect_base的任务
+        :type aspect_base:
+        :return:
+        :rtype:
+        """
         assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
+        if aspect_base:
+            prefix_data = self.get_dem8_prefix(data)
+            data, locations = self.aspect_base_truncate(data, prefix_data)
         test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         task_type = TaskType.Classification
