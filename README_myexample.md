@@ -55,3 +55,4 @@ predict.py --task_def experiments/myexample/my_task_def.yml --task absa --task_i
 predict.py --task_def experiments/myexample/my_task_def.yml --task dem8 --task_id 1 --checkpoint trained_model/absa_dem8.pt --prep_input data_my/canonical_data/bert-base-chinese/dem8_test.json --score predict_score.txt --with_label
 
 # 新建一个flask的api接口
+predict_api.py

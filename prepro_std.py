@@ -251,7 +251,7 @@ def parse_args():
 def main(args):
     # hyper param
     root = args.root_dir
-    assert os.path.exists(root)
+    assert os.path.exists(root), f"路径{root}不存在"
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
 

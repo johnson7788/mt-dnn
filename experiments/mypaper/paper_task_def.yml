@@ -1,0 +1,22 @@
+papertext:
+  description: 英文论文段落判断
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+    - 作者
+    - 页眉
+    - 页脚
+    - 段落
+    - 标题
+    - 参考
+  metric_meta:
+    - ACC
+  loss: CeCriterion
+  kd_loss: MseCriterion
+  adv_loss: SymKlCriterion
+  n_class: 6
+  split_names:
+    - train
+    - dev
+    - test
+  task_type: Classification
