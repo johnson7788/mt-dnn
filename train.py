@@ -295,6 +295,7 @@ def main():
         #训练的基本数据信息，例如用哪个损失，任务类型，任务标签等
         task_def = task_defs.get_task_def(prefix)
         task_def_list.append(task_def)
+        assert len(task_def.label_vocab.ind2tok) == task_def.n_class, "配置中的类别数量和标签数量不相等，请检查"
         train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
         print_message(logger, '加载训练任务 {}，训练任务的顺序id是： {}'.format(train_path, task_id))
         # 训练的数据的json文件， train_path = 'data_my/canonical_data/bert-base-chinese/absa_train.json'

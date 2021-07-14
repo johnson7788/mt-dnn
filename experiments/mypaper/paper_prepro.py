@@ -2,7 +2,7 @@ import os
 import argparse
 import random
 from sys import path
-
+import collections
 path.append(os.getcwd())
 from experiments.common_utils import dump_rows
 from data_utils.task_def import DataFormat
@@ -39,7 +39,7 @@ def collect_json(dirpath):
     print(f"共收集数据{len(data)} 条")
     return data
 
-def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, download_from_label_studio=False):
+def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, download_from_label_studio=True):
     """
     Aspect Base sentiment analysis
     :param kind: 是加载papertext数据，还是dem8的数据
@@ -76,18 +76,21 @@ def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, d
     dev_data = valid_data[train_num:train_num+dev_num]
     test_data = valid_data[train_num+dev_num:]
     # 处理一下，保存的格式
-    def change_data(kind_data):
+    def change_data(kind_data, name):
+        cnts = collections.Counter()
         rows = []
         for idx, one_data in enumerate(kind_data):
             content, location, label = one_data
             # label_id = labels2id[label]
-            assert label in ['作者','页眉','页脚','段落','标题','参考'], "label不是特定的关键字，那么paper_task_def.yml配置文件中的labels就不能解析，会出现错误"
+            assert label in ['作者','页眉','页脚','段落','标题','参考','表格','图像','公式','其它'], "label不是特定的关键字，那么paper_task_def.yml配置文件中的labels就不能解析，会出现错误"
             sample = {'uid': idx, 'premise': content, 'hypothesis': location, 'label': label}
+            cnts[label] +=1
             rows.append(sample)
+        print(f"{name}数据集的各个label的数量是: {cnts}")
         return rows
-    papertext_train_data = change_data(train_data)
-    papertext_dev_data = change_data(dev_data)
-    papertext_test_data = change_data(test_data)
+    papertext_train_data = change_data(train_data, name='train')
+    papertext_dev_data = change_data(dev_data, name='dev')
+    papertext_test_data = change_data(test_data, name='test')
     return papertext_train_data, papertext_dev_data, papertext_test_data
 
 
