@@ -9,12 +9,16 @@ papertext:
     - 段落
     - 标题
     - 参考
+    - 表格
+    - 图像
+    - 公式
+    - 其它
   metric_meta:
     - ACC
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
-  n_class: 6
+  n_class: 7
   split_names:
     - train
     - dev

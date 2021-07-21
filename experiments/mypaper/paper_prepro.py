@@ -39,7 +39,7 @@ def collect_json(dirpath):
     print(f"共收集数据{len(data)} 条")
     return data
 
-def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, download_from_label_studio=False):
+def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, download_from_label_studio=True):
     """
     Aspect Base sentiment analysis
     :param kind: 是加载papertext数据，还是dem8的数据
@@ -81,7 +81,7 @@ def load_papertext(train_rate=0.8, dev_rate=0.1, test_rate=0.1, max_length=50, d
         for idx, one_data in enumerate(kind_data):
             content, location, label = one_data
             # label_id = labels2id[label]
-            assert label in ['作者','页眉','页脚','段落','标题','参考'], "label不是特定的关键字，那么paper_task_def.yml配置文件中的labels就不能解析，会出现错误"
+            assert label in ['作者','页眉','页脚','段落','标题','参考','表格','图像','公式','其它'], "label不是特定的关键字，那么paper_task_def.yml配置文件中的labels就不能解析，会出现错误"
             sample = {'uid': idx, 'premise': content, 'hypothesis': location, 'label': label}
             rows.append(sample)
         return rows
