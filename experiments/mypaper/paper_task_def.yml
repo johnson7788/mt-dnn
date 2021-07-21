@@ -18,7 +18,7 @@ papertext:
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
-  n_class: 7
+  n_class: 10
   split_names:
     - train
     - dev

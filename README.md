@@ -6,6 +6,10 @@
 type：类型是8种类型中的一种
 [content:str, aspect_keywords:list, type:str, ...]
 
+
+## type的类型包括
+'effect','component','fragrance','pack','skin','promotion','service','price'
+
 ## 返回的结果格式
 [[keyword1_info:dict, keyword2_info:dict],...]
 keyword_info: {'keyword': keyword:str, 'labels': labels:list, 'locations': location:list, 'type': type:str}

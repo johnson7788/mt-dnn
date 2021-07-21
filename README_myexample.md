@@ -43,8 +43,13 @@ data_my/canonical_data/
 
 ```
 3. 训练任务
+单任务
 ```buildoutcfg
 python train.py --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --task_def experiments/myexample/my_task_def.yml --data_dir data_my/canonical_data/bert-base-chinese --train_datasets absa --test_datasets absa```
+```
+多任务
+```angular2html
+python train.py --data_dir data_my/canonical_data/bert-base-chinese --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --batch_size 8 --task_def experiments/myexample/my_task_def.yml --output_dir checkpoints/mt-dnn-absa --log_file checkpoints/mt-dnn-absa/log.log  --answer_opt 1  --optimizer adamax  --train_datasets absa,dem8 --test_datasets absa,dem8 --grad_clipping 0  --global_grad_clipping 1  --learning_rate 5e-5
 ```
 
 # 测试模型
@@ -56,3 +61,4 @@ predict.py --task_def experiments/myexample/my_task_def.yml --task dem8 --task_i
 
 # 新建一个flask的api接口
 predict_api.py
+
