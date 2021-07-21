@@ -458,7 +458,11 @@ class TorchMTDNNModel(object):
         # 搜索到的关键字的数量
         keywords_index = [0] * len(data)
         for idx, one_data in enumerate(data):
-            if len(one_data) == 2 or len(one_data) == 3:
+            if isinstance(one_data,str):
+                # 句子级的情感，没有aspect
+                contents.append((one_data, ""))
+                locations.append((0, 0))
+            elif len(one_data) == 2 or len(one_data) == 3:
                 #不带aspect关键字的位置信息，自己查找位置
                 content, aspect = one_data[0], one_data[1]
                 iter = re.finditer(aspect, content)
@@ -485,15 +489,15 @@ class TorchMTDNNModel(object):
                 contents.append((new_content, aspect))
                 locations.append((aspect_start, aspect_end))
             elif len(one_data) == 5:
-                content, aspect, aspect_start, aspect_end, label = one_data
+                content, aspect, attr_type, aspect_start, aspect_end = one_data
                 new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
                 if prefix_data:
                     prefix = prefix_data[idx]
                     new_content = prefix + new_content
-                contents.append((new_content, aspect, label))
+                contents.append((new_content, aspect))
                 locations.append((aspect_start, aspect_end))
             else:
-                raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
+                raise Exception(f"这条数据异常: {one_data},数据长度或者为1, 2, 4，或者为5")
         if search_first:
             return contents, locations
         else:
