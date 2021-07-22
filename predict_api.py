@@ -689,4 +689,4 @@ def dem8():
 
 if __name__ == "__main__":
     model = TorchMTDNNModel()
-    app.run(host='0.0.0.0', port=3326, debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=3326, debug=True, threaded=False)
