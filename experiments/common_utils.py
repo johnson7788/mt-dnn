@@ -23,6 +23,7 @@ def dump_rows(rows, out_path, data_format):
             elif data_format == DataFormat.PremiseAndOneHypothesis:
                 for col in ["uid", "label", "premise", "hypothesis"]:
                     if "\t" in str(row[col]):
+                        print(row[col], row)
                         import pdb; pdb.set_trace()
                 out_f.write("%s\t%s\t%s\t%s\n" % (row["uid"], row["label"], row["premise"], row["hypothesis"]))
             elif data_format == DataFormat.PremiseAndMultiHypothesis:

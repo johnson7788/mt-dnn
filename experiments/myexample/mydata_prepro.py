@@ -12,7 +12,7 @@ import sys
 logger = create_logger(__name__, to_disk=True, log_file='mydata_prepro.log')
 
 sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
-from convert_label_studio_data import get_all, get_demision8, do_truncate_data
+from convert_label_studio_data import get_all, get_demision8, do_truncate_data, get_all_purchase
 
 def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, left_max_seq_len=50, aspect_max_seq_len=8, right_max_seq_len=50):
     """
@@ -35,6 +35,18 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
         #     "否": 1,
         # }
         all_data = get_demision8(split=False, dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion','/opt/lavector/component', '/opt/lavector/fragrance'])
+    elif kind == 'purchase':
+        # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
+        a_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False)
+        # 把title+text拼接在一起
+        all_data = []
+        for d in a_data:
+            title_len = len(d[1])
+            text = d[1] + d[0]
+            start_idx = d[3] + title_len
+            end_idx = d[4] + title_len
+            one_data = [text, d[2],start_idx,end_idx,d[5]]
+            all_data.append(one_data)
     else:
         print("数据的种类不存在，退出")
         sys.exit(1)
@@ -65,7 +77,7 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
         for idx, one_data in enumerate(kind_data):
             content, keyword, label = one_data
             # label_id = labels2id[label]
-            assert label in ['消极','中性','积极','是','否'], "label不是特定的关键字，那么my_task_def.yml配置文件中的labels就不能解析，会出现错误"
+            # assert label in ['消极','中性','积极','是','否'], "label不是特定的关键字，那么my_task_def.yml配置文件中的labels就不能解析，会出现错误"
             sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
             rows.append(sample)
         return rows
@@ -114,6 +126,18 @@ def main(args):
     dump_rows(dem8_dev_data, dem8_dev_fout, DataFormat.PremiseAndOneHypothesis)
     dump_rows(dem8_test_data, dem8_test_fout, DataFormat.PremiseAndOneHypothesis)
     logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
+
+    ##############购买意向数据##############
+    purchase_train_data, purchase_dev_data, purchase_test_data = load_absa_dem8(kind='purchase')
+    #保存文件
+    purchase_train_fout = os.path.join(canonical_data_root, 'purchase_train.tsv')
+    purchase_dev_fout = os.path.join(canonical_data_root, 'purchase_dev.tsv')
+    purchase_test_fout = os.path.join(canonical_data_root, 'purchase_test.tsv')
+    dump_rows(purchase_train_data, purchase_train_fout, DataFormat.PremiseAndOneHypothesis)
+    dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
+    dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
+    logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
+
 
 if __name__ == '__main__':
     args = parse_args()

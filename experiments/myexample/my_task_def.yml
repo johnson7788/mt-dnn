@@ -8,6 +8,7 @@ absa:
     - 积极
   metric_meta:
     - ACC
+    - F1
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
@@ -31,6 +32,33 @@ dem8:
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
   n_class: 2
+  split_names:
+    - train
+    - dev
+    - test
+  task_type: Classification
+purchase:
+  description: 购买意向分类
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+    - 喜欢
+    - 想要
+    - 研究
+    - 购买
+    - 复购
+    - 明星种草
+    - 明星带货
+    - 推荐
+    - 被推荐
+    - 其它
+  metric_meta:
+  - ACC
+  - F1
+  loss: CeCriterion
+  kd_loss: MseCriterion
+  adv_loss: SymKlCriterion
+  n_class: 10
   split_names:
     - train
     - dev
