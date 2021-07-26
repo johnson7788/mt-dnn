@@ -316,8 +316,8 @@ class TorchMTDNNModel(object):
         # 任务的配置文件
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
-        # absa 情感分析， dem8是8个维度的判断
-        self.task_names = ['absa', 'dem8']
+        # absa 情感分析， dem8是8个维度的判断, purchase 购买意向
+        self.task_names = ['absa', 'dem8', 'purchase']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度
@@ -345,9 +345,9 @@ class TorchMTDNNModel(object):
             "service": "服务:",
             "price": "价格:",
         }
-        self.left_max_seq_len = 40
-        self.aspect_max_seq_len = 10
-        self.right_max_seq_len = 40
+        self.left_max_seq_len = 60
+        self.aspect_max_seq_len = 30
+        self.right_max_seq_len = 60
         # 是否放GPU
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -428,7 +428,7 @@ class TorchMTDNNModel(object):
                 return input_text[:max_len]
         else:
             return input_text
-    def aspect_truncate(self, content, aspect, aspect_start, aspect_end):
+    def aspect_truncate(self, content, aspect, aspect_start, aspect_end, left_max_seq_len, aspect_max_seq_len, right_max_seq_len):
         """
         截断函数
         :param content:
@@ -439,9 +439,9 @@ class TorchMTDNNModel(object):
         """
         text_left = content[:aspect_start]
         text_right = content[aspect_end:]
-        text_left = self.truncate(text_left, self.left_max_seq_len)
-        aspect = self.truncate(aspect, self.aspect_max_seq_len)
-        text_right = self.truncate(text_right, self.right_max_seq_len, trun_post="pre")
+        text_left = self.truncate(text_left, left_max_seq_len)
+        aspect = self.truncate(aspect, aspect_max_seq_len)
+        text_right = self.truncate(text_right, right_max_seq_len, trun_post="pre")
         new_content = text_left + aspect + text_right
         return new_content
     def aspect_base_truncate(self, data, prefix_data=None, search_first=True):
@@ -468,7 +468,7 @@ class TorchMTDNNModel(object):
                 iter = re.finditer(aspect, content)
                 for m in iter:
                     aspect_start, aspect_end = m.span()
-                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
                     if prefix_data:
                         prefix = prefix_data[idx]
                         new_content = prefix + new_content
@@ -482,7 +482,7 @@ class TorchMTDNNModel(object):
             elif len(one_data) == 4:
                 # 不带label时，长度是4，
                 content, aspect, aspect_start, aspect_end = one_data
-                new_content = self.aspect_truncate(content, aspect, aspect_start,aspect_end)
+                new_content = self.aspect_truncate(content, aspect, aspect_start,aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
                 if prefix_data:
                     prefix = prefix_data[idx]
                     new_content = prefix + new_content
@@ -490,10 +490,56 @@ class TorchMTDNNModel(object):
                 locations.append((aspect_start, aspect_end))
             elif len(one_data) == 5:
                 content, aspect, attr_type, aspect_start, aspect_end = one_data
-                new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
+                new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
                 if prefix_data:
                     prefix = prefix_data[idx]
                     new_content = prefix + new_content
+                contents.append((new_content, aspect))
+                locations.append((aspect_start, aspect_end))
+            else:
+                raise Exception(f"这条数据异常: {one_data},数据长度或者为1, 2, 4，或者为5")
+        if search_first:
+            return contents, locations
+        else:
+            return contents, locations, keywords_index
+    def purchase_text_truncate(self, data, search_first=True):
+        """购买意向的数据进行截断处理
+        对数据做truncate
+        :param data:针对不同类型的数据进行不同的截断
+        :param search_first: 是否只搜索第一个匹配的关键字
+        :return:返回列表，是截断后的文本，aspect
+        所以如果一个句子中有多个aspect关键字，那么就会产生多个截断的文本+关键字，组成的列表，会产生多个预测结果
+        """
+        contents = []
+        #保存关键字的索引，[(start_idx, end_idx)...]
+        locations = []
+        # 搜索到的关键字的数量
+        keywords_index = [0] * len(data)
+        for idx, one_data in enumerate(data):
+            if len(one_data) == 3:
+                #不带aspect关键字的位置信息，自己查找位置
+                content, title, aspect = one_data[0], one_data[1], one_data[2]
+                title_content = title + content
+                title_content = title_content.lower()
+                iter = re.finditer(aspect, title_content)
+                for m in iter:
+                    aspect_start, aspect_end = m.span()
+                    new_content = self.aspect_truncate(title_content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
+                    contents.append((new_content, aspect))
+                    locations.append((aspect_start,aspect_end))
+                    if search_first:
+                        #只取第一个关键字的数据
+                        break
+                    else:
+                        keywords_index[idx] += 1
+            elif len(one_data) == 5:
+                content, title, aspect, aspect_start, aspect_end = one_data
+                # 拼接title的内容
+                title_content = title + content
+                title_content = title_content.lower()
+                aspect_start = aspect_start + len(title)
+                aspect_end = aspect_end + len(title)
+                new_content = self.aspect_truncate(title_content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
                 contents.append((new_content, aspect))
                 locations.append((aspect_start, aspect_end))
             else:
@@ -531,7 +577,6 @@ class TorchMTDNNModel(object):
                     locations.append((aspect_start,aspect_end))
                     aspects_index[idx][aidx] += 1
         return contents, locations, aspects_index
-
     def get_dem8_prefix(self, data):
         """
         获取8个维度的分类任务的前缀, 每个data的类型可能不同，那么前缀也可能不同
@@ -555,7 +600,7 @@ class TorchMTDNNModel(object):
         :type data:
         :param with_label:  如果数据带了标签，那么打印metric
         :type with_label:
-        :param aspect_base:  是否是aspect_base的任务
+        :param aspect_base:  是否是aspect_base的任务, 返回aspect的位置
         :type aspect_base:
         :return:
         :rtype:
@@ -563,11 +608,17 @@ class TorchMTDNNModel(object):
         assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
         if aspect_base:
             if task_name == 'absa':
-                prefix_data = None
-            else:
+                truncate_data, locations = self.aspect_base_truncate(data)
+            elif task_name == 'dem8':
+                # dem8和purchase都有prefix，
                 prefix_data = self.get_dem8_prefix(data)
-            data, locations = self.aspect_base_truncate(data, prefix_data=prefix_data)
-        test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+                truncate_data, locations = self.aspect_base_truncate(data,prefix_data=prefix_data)
+            else:
+                # purchase是把title作为prefix
+                truncate_data, locations = self.purchase_text_truncate(data)
+            test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        else:
+            test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
@@ -667,6 +718,26 @@ def dem8_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     results = model.predict_batch(task_name='dem8', data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/purchase_predict", methods=['POST'])
+def purchase_predict():
+    """
+    购买意向分类
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        接受数据是 [(content,title, aspect),...,]
+        或者：
+        test_data: 需要预测的数据，是一个文字列表, [(content,title, aspect,start_idx, end_idx),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspect),...,]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    logger.info(f"要进行的任务是购买意向判断")
+    results = model.predict_batch(task_name='purchase', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)

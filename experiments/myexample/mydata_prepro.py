@@ -14,7 +14,7 @@ logger = create_logger(__name__, to_disk=True, log_file='mydata_prepro.log')
 sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
 from convert_label_studio_data import get_all, get_demision8, do_truncate_data, get_all_purchase
 
-def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, left_max_seq_len=50, aspect_max_seq_len=8, right_max_seq_len=50):
+def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, left_max_seq_len=60, aspect_max_seq_len=30, right_max_seq_len=60):
     """
     Aspect Base sentiment analysis
     :param kind: 是加载absa数据，还是dem8的数据
