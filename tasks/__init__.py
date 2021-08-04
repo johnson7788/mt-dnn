@@ -135,7 +135,7 @@ class RegressionTask(MTDNNTask):
         np_score = score.numpy()
         predict = np.argmax(np_score, axis=1).tolist()
         if full_score:
-            score = np_score
+            score = np_score.tolist()
         else:
             score = np.max(np_score, axis=1).tolist()
         return score, predict
@@ -167,7 +167,7 @@ class ClassificationTask(MTDNNTask):
         np_score = score.numpy()
         predict = np.argmax(np_score, axis=1).tolist()
         if full_score:
-            score = np_score
+            score = np_score.tolist()
         else:
             score = np.max(np_score, axis=1).tolist()
         return score, predict

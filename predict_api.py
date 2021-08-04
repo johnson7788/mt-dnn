@@ -706,6 +706,23 @@ def absa_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
+@app.route("/api/absa_predict_fullscore", methods=['POST'])
+def absa_predict_fullscore():
+    """
+    情感的预测接收POST请求，获取data参数, data信息包含aspect关键在在句子中的位置信息，方便我们截取，我们截取aspect关键字的前后一定的字符作为输入
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [(content,aspect,start_idx, end_idx),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspect),...,]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    results = model.predict_batch(task_name='absa', data=test_data, full_score=True)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
 @app.route("/api/dem8_predict", methods=['POST'])
 def dem8_predict():
     """
