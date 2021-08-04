@@ -591,7 +591,7 @@ class TorchMTDNNModel(object):
             prefix_name = self.type_to_prefix[type_name]
             prefix_data.append(prefix_name)
         return prefix_data
-    def predict_batch(self, task_name, data, with_label=False, aspect_base=True):
+    def predict_batch(self, task_name, data, with_label=False, aspect_base=True, full_score=False):
         """
         预测数据
         :param task_name:
@@ -602,6 +602,7 @@ class TorchMTDNNModel(object):
         :type with_label:
         :param aspect_base:  是否是aspect_base的任务, 返回aspect的位置
         :type aspect_base:
+        :param full_score: bool, 返回的score是按照最大概率返回，还是返回一个列表，返回预测的结果的那个所有score
         :return:
         :rtype:
         """
@@ -629,7 +630,7 @@ class TorchMTDNNModel(object):
             ids = []
             for (batch_info, batch_data) in test_data:
                 batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
-                score, pred, gold = self.model.predict(batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data, full_score)
                 predictions.extend(pred)
                 golds.extend(gold)
                 scores.extend(score)

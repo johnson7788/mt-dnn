@@ -130,11 +130,14 @@ class RegressionTask(MTDNNTask):
         return torch.FloatTensor(softlabels)
 
     @staticmethod
-    def test_predict(score):
+    def test_predict(score, full_score=False):
         score = score.data.cpu()
-        score = score.numpy()
-        predict = np.argmax(score, axis=1).tolist()
-        score = score.reshape(-1).tolist()
+        np_score = score.numpy()
+        predict = np.argmax(np_score, axis=1).tolist()
+        if full_score:
+            score = np_score
+        else:
+            score = np.max(np_score, axis=1).tolist()
         return score, predict
 
 @register_task('Classification')
@@ -158,10 +161,13 @@ class ClassificationTask(MTDNNTask):
         return torch.FloatTensor(softlabels)
 
     @staticmethod
-    def test_predict(score):
+    def test_predict(score, full_score=False):
         score = F.softmax(score, dim=1)
         score = score.data.cpu()
-        score = score.numpy()
-        predict = np.argmax(score, axis=1).tolist()
-        score = score.reshape(-1).tolist()
+        np_score = score.numpy()
+        predict = np.argmax(np_score, axis=1).tolist()
+        if full_score:
+            score = np_score
+        else:
+            score = np.max(np_score, axis=1).tolist()
         return score, predict

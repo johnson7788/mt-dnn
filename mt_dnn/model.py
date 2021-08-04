@@ -333,7 +333,18 @@ class MTDNNModel(object):
         all_encoder_layers, pooled_output = self.mnetwork.bert(*inputs)
         return all_encoder_layers, pooled_output
 
-    def predict(self, batch_meta, batch_data):
+    def predict(self, batch_meta, batch_data, full_score=False):
+        """
+
+        :param batch_meta:
+        :type batch_meta:
+        :param batch_data:
+        :type batch_data:
+        :param full_score: score返回一个列表，返回所有的score
+        :type full_score:
+        :return:
+        :rtype:
+        """
         self.network.eval()
         task_id = batch_meta['task_id']
         task_def = TaskDef.from_dict(batch_meta['task_def'])
@@ -346,7 +357,7 @@ class MTDNNModel(object):
         inputs.append(task_id)
         score = self.mnetwork(*inputs)
         if task_obj is not None:
-            score, predict = task_obj.test_predict(score)
+            score, predict = task_obj.test_predict(score, full_score)
         elif task_type == TaskType.Ranking:
             score = score.contiguous().view(-1, batch_meta['pairwise_size'])
             assert task_type == TaskType.Ranking
