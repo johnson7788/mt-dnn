@@ -569,7 +569,7 @@ class TorchMTDNNModel(object):
                 iter = re.finditer(aspect, content)
                 for m in iter:
                     aspect_start, aspect_end = m.span()
-                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
                     if prefix_data:
                         prefix = prefix_data[idx]
                         new_content = prefix + new_content
