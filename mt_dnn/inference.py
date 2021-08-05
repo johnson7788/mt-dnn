@@ -26,13 +26,35 @@ def extract_encoding(model, data, use_cuda=True):
     return torch.cat(new_sequence_outputs)
 
 def eval_model(model, data, metric_meta, device, with_label=True, label_mapper=None, task_type=TaskType.Classification):
+    """
+    存储所有数据的预测结果
+    :param model:
+    :type model:
+    :param data:
+    :type data:
+    :param metric_meta:
+    :type metric_meta:
+    :param device:
+    :type device:
+    :param with_label:
+    :type with_label:
+    :param label_mapper:
+    :type label_mapper:
+    :param task_type:
+    :type task_type:
+    :return: metrics: {'ACC': 68.92341842397336},  predictions: list, 预测的id
+            scores: list,预测的概率,  golds: gold 标签的id, ids: 预测数据的索引
+    :rtype:
+    """
     predictions = []
     golds = []
     scores = []
     ids = []
     metrics = {}
+    # 按顺序读取一个批次的数据
     for (batch_info, batch_data) in data:
         batch_info, batch_data = Collater.patch_data(device, batch_info, batch_data)
+        # score是预测的置信度，pred是预测的类别id，gold是golden-standard
         score, pred, gold = model.predict(batch_info, batch_data)
         predictions.extend(pred)
         golds.extend(gold)

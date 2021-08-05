@@ -482,6 +482,11 @@ def main():
             model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
             print_message(logger, 'epoch结束保存模型: {}'.format(model_file))
             model.save(model_file)
+    # 保存最后的模型
+    if args.local_rank in [-1, 0]:
+        model_file = os.path.join(output_dir, 'model_final.pt')
+        print_message(logger, '最终保存模型: {}'.format(model_file))
+        model.save(model_file)
     if args.tensorboard:
         tensorboard.close()
 

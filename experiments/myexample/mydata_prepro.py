@@ -2,6 +2,7 @@ import os
 import argparse
 import random
 from sys import path
+import pickle
 
 path.append(os.getcwd())
 from experiments.common_utils import dump_rows
@@ -14,7 +15,22 @@ logger = create_logger(__name__, to_disk=True, log_file='mydata_prepro.log')
 sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
 from convert_label_studio_data import get_all, get_demision8, do_truncate_data, get_all_purchase
 
-def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, left_max_seq_len=60, aspect_max_seq_len=30, right_max_seq_len=60):
+absa_source_file = "data_my/canonical_data/source_data/absa.pkl"
+dem8_source_file = "data_my/canonical_data/source_data/dem8.pkl"
+purchase_source_file = "data_my/canonical_data/source_data/purchase.pkl"
+
+def save_source_data():
+    #保存三个数据集的原始数据，方便以后不从label-studio读取
+    absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False)
+    dem8_data = get_demision8(split=False,
+                             dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
+                                           '/opt/lavector/component', '/opt/lavector/fragrance'])
+    purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False)
+    pickle.dump(absa_data, open(absa_source_file, "wb"))
+    pickle.dump(dem8_data, open(dem8_source_file, "wb"))
+    pickle.dump(purchase_data, open(purchase_source_file, "wb"))
+
+def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right_max_seq_len=60, use_pickle=False):
     """
     Aspect Base sentiment analysis
     :param kind: 是加载absa数据，还是dem8的数据
@@ -22,7 +38,12 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
     :rtype:
     """
     if kind == 'absa':
-        all_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False)
+        if use_pickle:
+            assert os.path.exists(absa_source_file), "源数据的pickle文件不存在，请检查"
+            with open(absa_source_file, 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False)
         # labels2id = {
         #     "消极": 0,
         #     "中性": 1,
@@ -34,10 +55,20 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
         #     "是": 0,
         #     "否": 1,
         # }
-        all_data = get_demision8(split=False, dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion','/opt/lavector/component', '/opt/lavector/fragrance'])
+        if use_pickle:
+            assert os.path.exists(dem8_source_file), "源数据的pickle文件不存在，请检查"
+            with open(dem8_source_file, 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_demision8(split=False, dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion','/opt/lavector/component', '/opt/lavector/fragrance'])
     elif kind == 'purchase':
         # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
-        a_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False)
+        if use_pickle:
+            assert os.path.exists(purchase_source_file), "源数据的pickle文件不存在，请检查"
+            with open(purchase_source_file, 'rb') as f:
+                a_data = pickle.load(f)
+        else:
+            a_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False)
         # 把title+text拼接在一起
         all_data = []
         for d in a_data:
@@ -62,15 +93,37 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
             new_one[0] = content
             new_data.append(new_one)
         data = new_data
-    random.seed(30)
-    random.shuffle(data)
+    return data
+
+def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1):
+    """
+    :param data:
+    :type data:
+    :param random_seed:
+    :type random_seed:
+    :param train_rate:
+    :type train_rate:
+    :param dev_rate:
+    :type dev_rate:
+    :param test_rate:
+    :type test_rate:
+    :return:
+    :rtype:
+    """
+    random.seed(random_seed)
+    # 可以通过id找到对应的源数据
+    data_id = list(range(len(data)))
+    random.shuffle(data_id)
     total = len(data)
     train_num = int(total * train_rate)
     dev_num = int(total * dev_rate)
     test_num = int(total * test_rate)
-    train_data = data[:train_num]
-    dev_data = data[train_num:train_num+dev_num]
-    test_data = data[train_num+dev_num:]
+    train_data_id = data_id[:train_num]
+    dev_data_id = data_id[train_num:train_num+dev_num]
+    test_data_id = data_id[train_num+dev_num:]
+    train_data = [data[id] for id in train_data_id]
+    dev_data = [data[id] for id in dev_data_id]
+    test_data = [data[id] for id in test_data_id]
     # 处理一下，保存的格式
     def change_data(kind_data):
         rows = []
@@ -81,22 +134,23 @@ def load_absa_dem8(kind='absa', train_rate=0.8, dev_rate=0.1, test_rate=0.1, lef
             sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
             rows.append(sample)
         return rows
-    absa_train_data = change_data(train_data)
-    absa_dev_data = change_data(dev_data)
-    absa_test_data = change_data(test_data)
-    return absa_train_data, absa_dev_data, absa_test_data
+    my_train_data = change_data(train_data)
+    my_dev_data = change_data(dev_data)
+    my_test_data = change_data(test_data)
+    return my_train_data, my_dev_data, my_test_data, train_data_id, dev_data_id, test_data_id
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--seed', type=int, default=13)
     parser.add_argument('--root_dir', type=str, default='data_my')
+    parser.add_argument('--save_source_pkl', action="store_true", help='把原始数据导出到本地的data_my/canonical_data/source_data文件夹')
+    parser.add_argument('--use_pkl', action="store_true", help='使用本地的pkl缓存的原始数据，不使用label-studio产生的数据')
     args = parser.parse_args()
     return args
 
 
-def main(args):
-    root = args.root_dir
+def do_prepro(root, use_pkl, seed):
     assert os.path.exists(root), f"运行的路径是系统的根目录吗，请确保{root}文件夹存在"
     canonical_data_suffix = "canonical_data"
     canonical_data_root = os.path.join(root, canonical_data_suffix)
@@ -106,7 +160,8 @@ def main(args):
 
     ##############ABSA 的数据##############
     #保存成tsv文件
-    absa_train_data, absa_dev_data, absa_test_data = load_absa_dem8(kind='absa')
+    data = load_absa_dem8(kind='absa', use_pickle=use_pkl)
+    absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed)
     #保存文件
     absa_train_fout = os.path.join(canonical_data_root, 'absa_train.tsv')
     absa_dev_fout = os.path.join(canonical_data_root, 'absa_dev.tsv')
@@ -117,7 +172,8 @@ def main(args):
     logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
 
     ##############8个维度的数据##############
-    dem8_train_data, dem8_dev_data, dem8_test_data = load_absa_dem8(kind='dem8')
+    data = load_absa_dem8(kind='dem8', use_pickle=use_pkl)
+    dem8_train_data, dem8_dev_data, dem8_test_data,dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = split_save_data(data=data,random_seed=seed)
     #保存文件
     dem8_train_fout = os.path.join(canonical_data_root, 'dem8_train.tsv')
     dem8_dev_fout = os.path.join(canonical_data_root, 'dem8_dev.tsv')
@@ -128,7 +184,8 @@ def main(args):
     logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
 
     ##############购买意向数据##############
-    purchase_train_data, purchase_dev_data, purchase_test_data = load_absa_dem8(kind='purchase')
+    data = load_absa_dem8(kind='purchase', use_pickle=use_pkl)
+    purchase_train_data, purchase_dev_data, purchase_test_data, purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = split_save_data(data=data,random_seed=seed)
     #保存文件
     purchase_train_fout = os.path.join(canonical_data_root, 'purchase_train.tsv')
     purchase_dev_fout = os.path.join(canonical_data_root, 'purchase_dev.tsv')
@@ -137,8 +194,11 @@ def main(args):
     dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
     dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
     logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
-
+    return (absa_train_data_id, absa_dev_data_id, absa_test_data_id), (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id), (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id)
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args)
+    if args.save_source_pkl:
+        save_source_data()
+    else:
+        do_prepro(root=args.root_dir, use_pkl=args.use_pkl, seed=args.seed)

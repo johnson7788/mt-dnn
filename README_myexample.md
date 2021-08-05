@@ -49,7 +49,11 @@ python train.py --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --tas
 ```
 多任务
 ```angular2html
+# 2个任务
 python train.py --data_dir data_my/canonical_data/bert-base-chinese --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --batch_size 8 --task_def experiments/myexample/my_task_def.yml --output_dir checkpoints/mt-dnn-absa --log_file checkpoints/mt-dnn-absa/log.log  --answer_opt 1  --optimizer adamax  --train_datasets absa,dem8 --test_datasets absa,dem8 --grad_clipping 0  --global_grad_clipping 1  --learning_rate 5e-5
+
+# 3个任务
+python train.py --data_dir data_my/canonical_data/bert-base-chinese --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --batch_size 32 --task_def experiments/myexample/my_task_def.yml --output_dir checkpoints/mt-dnn-absa --log_file checkpoints/mt-dnn-absa/log.log  --answer_opt 1  --optimizer adamax  --train_datasets absa,dem8,purchase --test_datasets absa,dem8,purchase --grad_clipping 0  --global_grad_clipping 1  --learning_rate 5e-5
 ```
 
 # 测试模型
@@ -58,6 +62,12 @@ predict.py --task_def experiments/myexample/my_task_def.yml --task absa --task_i
 
 ## 测试8个维度的任务
 predict.py --task_def experiments/myexample/my_task_def.yml --task dem8 --task_id 1 --checkpoint trained_model/absa_dem8.pt --prep_input data_my/canonical_data/bert-base-chinese/dem8_test.json --score predict_score.txt --with_label
+
+## 测试购买意向
+predict.py --task_def experiments/myexample/my_task_def.yml --task purchase --task_id 2 --checkpoint trained_model/absa_dem8.pt --prep_input data_my/canonical_data/bert-base-chinese/purchase_test.json --score predict_score.txt --with_label
+
+## 保存预测错误的样本到单独的文件, wrong_sample/purchase_wrong_seed_13.pkl
+predict.py --task_def experiments/myexample/my_task_def.yml --task purchase --task_id 2 --checkpoint trained_model/absa_dem8.pt --prep_input data_my/canonical_data/bert-base-chinese/purchase_test.json --score predict_score.txt --with_label --do_collection --collection_file wrong_sample/purchase_wrong_seed_13.pkl
 
 # 新建一个flask的api接口
 predict_api.py
