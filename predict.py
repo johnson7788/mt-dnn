@@ -26,7 +26,7 @@ def got_args():
     parser.add_argument("--with_label", action="store_true", help='打印metrics')
     parser.add_argument("--score", type=str, default='predict_score.txt',help="scores的保存路径, 每个样本的predict的分数，即最大的概率")
     parser.add_argument('--max_seq_len', type=int, default=512, help='最大序列长度')
-    parser.add_argument('--batch_size_eval', type=int, default=8, help='评估的batch_size大小')
+    parser.add_argument('--batch_size_eval', type=int, default=32, help='评估的batch_size大小')
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(), help='是否使用GPU')
     parser.add_argument("--checkpoint", default='mt_dnn_models/bert_model_base_uncased.pt', type=str,help='你训练好的模型，使用哪个模型进行预测')
     parser.add_argument('--do_collection', action="store_true", help='收集预测错误的数据，保存的特定的文件中，由collection_file指定')
@@ -96,17 +96,18 @@ def do_predict(task, task_def, task_id, prep_input, with_label, score, max_seq_l
         dump(path=score, data=results)
         if with_label:
             print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
+    # 把预测的id和gold的id变成标签名字
+    id2label = task_def_list[task_id].label_vocab.ind2tok
+    predict_labels = [id2label[p] for p in test_predictions]
+    gold_labels = [id2label[p] for p in golds]
     if do_collection:
         # 预测数据的位置 prep_input 对应的源文件位置, json是处理过后的数据，tsv是源数据
         json_file = os.path.basename(prep_input)
         tsv_file = os.path.join("data_my/canonical_data", json_file)
         tsv_file = tsv_file[:-4] + 'tsv'
         assert os.path.exists(tsv_file), "tsv源文件不存在，请检查"
-        #把预测的id和gold的id变成标签名字
-        id2label = task_def_list[task_id].label_vocab.ind2tok
-        predict_labels = [id2label[p] for p in test_predictions]
-        gold_labels = [id2label[p] for p in golds]
         collect_wrongs(save_file=collection_file, predictions=predict_labels, goldens=gold_labels, src_file=tsv_file)
+    return test_metrics, predict_labels, scores, gold_labels, test_ids
 def collect_wrongs(save_file,predictions,goldens,src_file):
     """
     把预测错误的过滤出来，找到源数据，然后保存到save_file中

@@ -7,7 +7,8 @@
 import argparse
 import os
 from experiments.myexample.mydata_prepro import do_prepro, absa_source_file, dem8_source_file, purchase_source_file
-
+from predict import do_predict
+import collections
 
 def got_args():
     parser = argparse.ArgumentParser()
@@ -35,6 +36,8 @@ def train_and_filter(args):
     if not os.path.exists(wrong_path):
         os.makedirs(wrong_path)
     for sd in seeds:
+        wrong_sample_record = os.path.join(wrong_path, f"filter_seed{sd}.pkl")
+        records = collections.defaultdict(dict)
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
         absa_ids, dems_ids, purchase_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
@@ -66,6 +69,37 @@ def train_and_filter(args):
         os.system(command=command)
         # 训练完成，使用训练完成的最后的epoch模型进行预测
         model_path = os.path.join(model_output_dir, "model_final.pt")
+        tasks2id = {
+            "absa": 0,
+            "dem8": 1,
+            "purchase": 2
+        }
+        # 对于每个任务都进行测试
+        datasets = ["train","dev","test"]
+        for task in tasks:
+            task_record = {}
+            if task == "absa":
+                task_record["train_data_id"] = absa_train_data_id
+                task_record["dev_data_id"] = absa_dev_data_id
+                task_record["test_data_id"] = absa_test_data_id
+            elif task == "dem8":
+                task_record["train_data_id"] = dem8_train_data_id
+                task_record["dev_data_id"] = dem8_dev_data_id
+                task_record["test_data_id"] = dem8_test_data_id
+            else:
+                task_record["train_data_id"] = purchase_train_data_id
+                task_record["dev_data_id"] = purchase_dev_data_id
+                task_record["test_data_id"] = purchase_test_data_id
+            task_id = tasks2id[task]
+            # 对训练，测试，开发数据集都进行预测一下
+            for dataset in datasets:
+                prep_input = f"data_my/canonical_data/bert-base-chinese/{task}_{dataset}.json"
+                # 预测结果
+                test_metrics, predict_labels, scores, gold_labels, _ = do_predict(task, task_def="experiments/glue/glue_task_def.yml", task_id=task_id, prep_input=prep_input, with_label=True, score="predict_score.txt", max_seq_len=512, batch_size_eval=32, checkpoint=model_path,
+                           cuda=True, do_collection=False, collection_file=None)
+
+            records[task] = task_record
+    # 保存一次实验的seed结果
 
 
 if __name__ == '__main__':
