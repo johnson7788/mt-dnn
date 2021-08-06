@@ -13,9 +13,16 @@ import collections
 
 def got_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
     parser.add_argument("--seed", type=str, default="1,2",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
     parser.add_argument("--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有')
-    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0806", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用任务名+随机数种子命名")
+    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0806", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
+
+    #分析badcase的参数
+    parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
+    parser.add_argument("--analysis_path", type=str, default="wrong_sample/0806", help="分析保存预测错误的样本的文件夹，pkl格式")
+
+
     args = parser.parse_args()
     return args
 
@@ -34,9 +41,12 @@ def train_and_filter(seed, task ,wrong_path):
     # 检查保存目录
     if not os.path.exists(wrong_path):
         os.makedirs(wrong_path)
+    #备份下源数据到wrong_path目录
+    os.system(command=f"cp -a data_my/canonical_data/source_data {wrong_path}")
     for sd in seeds:
         wrong_sample_record = os.path.join(wrong_path, f"filter_seed_{sd}.pkl")
         records = collections.defaultdict(dict)
+        records['seed'] = sd
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
         absa_ids, dems_ids, purchase_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
@@ -75,6 +85,7 @@ def train_and_filter(seed, task ,wrong_path):
             "dem8": 1,
             "purchase": 2
         }
+        records['model_path'] = model_path
         for task in tasks:
             task_record = {}
             if task == "absa":
@@ -107,6 +118,18 @@ def train_and_filter(seed, task ,wrong_path):
         with open(wrong_sample_record, 'w') as f:
             json.dump(records,f)
 
+def do_analysis():
+    """
+    分析badcase
+    :return:
+    :rtype:
+    """
+    pass
+
 if __name__ == '__main__':
     args = got_args()
-    train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
+    if args.do_train_filter:
+        train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
+    else:
+        #分析
+        do_analysis()
