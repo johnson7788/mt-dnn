@@ -10,6 +10,9 @@ import os
 from experiments.myexample.mydata_prepro import do_prepro, absa_source_file, dem8_source_file, purchase_source_file
 from predict import do_predict
 import collections
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 def got_args():
     parser = argparse.ArgumentParser()
@@ -118,13 +121,80 @@ def train_and_filter(seed, task ,wrong_path):
         with open(wrong_sample_record, 'w') as f:
             json.dump(records,f)
 
-def do_analysis():
+def do_analysis(analysis_path):
     """
     分析badcase
     :return:
     :rtype:
     """
-    pass
+    tasks = ["absa", "dem8", "purchase"]
+    assert os.path.exists(analysis_path), f"给定的分析的路径不存在:{analysis_path}，请检查目录是否正确"
+    files = os.listdir(analysis_path)
+    assert "source_data" in files, "原始数据目录不在里面，请检查"
+    absa_src_data = os.path.join(analysis_path, "source_data", "absa.pkl")
+    dem8_src_data = os.path.join(analysis_path, "source_data", "dem8.pkl")
+    purchase_src_data = os.path.join(analysis_path, "source_data", "purchase.pkl")
+    assert os.path.exists(absa_src_data), "absa的原始数据文件不存在，请检查"
+    assert os.path.exists(dem8_src_data), "dem8的原始数据文件不存在，请检查"
+    assert os.path.exists(purchase_src_data), "purchase的原始数据文件不存在，请检查"
+    # 每个随机数种子训练模型后的结果
+    seed_pkl = [f for f in files if f.endswith('.pkl')]
+    plot_seeds = [1,2]
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    for sd_file in seed_pkl:
+        #读取每个记录的pkl文件
+        sd_file_path = os.path.join(analysis_path, sd_file)
+        with open(sd_file_path, 'rb') as f:
+            #单次的运行结果
+            sd_res = json.load(f)
+        # plot_seeds.append()
+        absa_train_acc = sd_res['absa']['train_metrics']['ACC']
+        absa_dev_acc = sd_res['absa']['dev_metrics']['ACC']
+        absa_test_acc = sd_res['absa']['test_metrics']['ACC']
+        absa_plot_acc_data.append([absa_train_acc,absa_dev_acc,absa_test_acc])
+        # dem8的准确率收集
+        dem8_train_acc = sd_res['dem8']['train_metrics']['ACC']
+        dem8_dev_acc = sd_res['dem8']['dev_metrics']['ACC']
+        dem8_test_acc = sd_res['dem8']['test_metrics']['ACC']
+        dem8_plot_acc_data.append([dem8_train_acc,dem8_dev_acc,dem8_test_acc])
+        # purchase
+        purchase_train_acc = sd_res['purchase']['train_metrics']['ACC']
+        purchase_dev_acc = sd_res['purchase']['dev_metrics']['ACC']
+        purchase_test_acc = sd_res['purchase']['test_metrics']['ACC']
+        purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
+    plot_acc(title="情感任务absa",seeds=plot_seeds, accurcys=absa_plot_acc_data)
+    plot_acc(title="属性判断dem8",seeds=plot_seeds, accurcys=dem8_plot_acc_data)
+    plot_acc(title="购买意向purchase",seeds=plot_seeds, accurcys=purchase_plot_acc_data)
+
+def plot_acc(title, seeds, accurcys):
+    """
+    绘制准确率的柱状图
+    :param title:  绘图显示的标题
+    :type title:
+    :param seeds: 随机数种子的列表
+    :type seeds:
+    :param accurcys: 准确率的列表，嵌套的列表，每个列表是【训练集，开发集，测试集】结果
+    :type accurcys:
+    :return:
+    :rtype:
+    """
+    mpl.rcParams['font.family'] = ['SimHei']
+    mpl.rcParams['axes.unicode_minus'] = False
+    x = np.arange(0, len(seeds))
+    w = 0.8 / 3
+    # 设置标题
+    accurcys = np.array(accurcys).T
+    plt.title(title)
+    plt.bar(x + w, accurcys[0], label='训练集', width=w, align='center')
+    plt.bar(x - w, accurcys[1], label='开发集', width=w, align='center')
+    plt.bar(x, accurcys[2], label='测试集', width=w, align='center')
+    plt.xticks(x, seeds)
+    plt.xlabel("随机数种子")
+    plt.ylabel("准确率")
+    plt.legend()
+    plt.show()
 
 if __name__ == '__main__':
     args = got_args()
@@ -132,4 +202,4 @@ if __name__ == '__main__':
         train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
     else:
         #分析
-        do_analysis()
+        do_analysis(analysis_path=args.analysis_path)
