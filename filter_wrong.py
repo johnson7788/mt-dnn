@@ -139,16 +139,31 @@ def do_analysis(analysis_path):
     assert os.path.exists(purchase_src_data), "purchase的原始数据文件不存在，请检查"
     # 每个随机数种子训练模型后的结果
     seed_pkl = [f for f in files if f.endswith('.pkl')]
-    plot_seeds = [1,2]
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
+    # 读取每个运行结果
+    seeds_result = []
     for sd_file in seed_pkl:
         #读取每个记录的pkl文件
         sd_file_path = os.path.join(analysis_path, sd_file)
         with open(sd_file_path, 'rb') as f:
             #单次的运行结果
             sd_res = json.load(f)
+        seeds_result.append(sd_res)
+    #准确率的绘制
+    analysis_acc(seeds_result)
+
+def analysis_acc(seeds_result):
+    """
+    读取每个seed种子的结果，绘图准确率
+    :param seeds_result:
+    :type seeds_result:
+    :return:
+    :rtype:
+    """
+    plot_seeds = [1,2]
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    for sd_res in seeds_result:
         # plot_seeds.append()
         absa_train_acc = sd_res['absa']['train_metrics']['ACC']
         absa_dev_acc = sd_res['absa']['dev_metrics']['ACC']
