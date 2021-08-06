@@ -150,6 +150,39 @@ def do_analysis(analysis_path):
         seeds_result.append(sd_res)
     #准确率的绘制
     analysis_acc(seeds_result)
+    analysis_sample_num(seeds_result)
+
+def analysis_sample_num(seeds_result):
+    """
+    读取每个seed种子的结果，绘制样本数量，样本数量基本是一样的
+    :param seeds_result:
+    :type seeds_result:
+    :return:
+    :rtype:
+    """
+    plot_seeds = [1,2]
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    for sd_res in seeds_result:
+        # plot_seeds.append()
+        absa_train_acc = len(sd_res['absa']['train_data_id'])
+        absa_dev_acc = len(sd_res['absa']['dev_data_id'])
+        absa_test_acc = len(sd_res['absa']['test_data_id'])
+        absa_plot_acc_data.append([absa_train_acc,absa_dev_acc,absa_test_acc])
+        # dem8的准确率收集
+        dem8_train_acc = len(sd_res['dem8']['train_data_id'])
+        dem8_dev_acc = len(sd_res['dem8']['dev_data_id'])
+        dem8_test_acc = len(sd_res['dem8']['test_data_id'])
+        dem8_plot_acc_data.append([dem8_train_acc,dem8_dev_acc,dem8_test_acc])
+        # purchase
+        purchase_train_acc = len(sd_res['purchase']['train_data_id'])
+        purchase_dev_acc = len(sd_res['purchase']['dev_data_id'])
+        purchase_test_acc = len(sd_res['purchase']['test_data_id'])
+        purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
+    plot_bar(title="情感任务absa的样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
+    plot_bar(title="属性判断dem8的样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
+    plot_bar(title="购买意向purchase的样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
 
 def analysis_acc(seeds_result):
     """
@@ -179,19 +212,20 @@ def analysis_acc(seeds_result):
         purchase_dev_acc = sd_res['purchase']['dev_metrics']['ACC']
         purchase_test_acc = sd_res['purchase']['test_metrics']['ACC']
         purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
-    plot_acc(title="情感任务absa的准确率",seeds=plot_seeds, accurcys=absa_plot_acc_data)
-    plot_acc(title="属性判断dem8的准确率",seeds=plot_seeds, accurcys=dem8_plot_acc_data)
-    plot_acc(title="购买意向purchase的准确率",seeds=plot_seeds, accurcys=purchase_plot_acc_data)
+    plot_bar(title="情感任务absa的准确率",yname="准确率",seeds=plot_seeds, yvalue=absa_plot_acc_data, ylimit=[0, 100])
+    plot_bar(title="属性判断dem8的准确率",yname="准确率",seeds=plot_seeds, yvalue=dem8_plot_acc_data,ylimit=[0, 100])
+    plot_bar(title="购买意向purchase的准确率",yname="准确率",seeds=plot_seeds, yvalue=purchase_plot_acc_data,ylimit=[0, 100])
 
-def plot_acc(title, seeds, accurcys):
+def plot_bar(title,yname,seeds, yvalue, ylimit=None):
     """
     绘制准确率的柱状图
     :param title:  绘图显示的标题
     :type title:
     :param seeds: 随机数种子的列表
     :type seeds:
-    :param accurcys: 准确率的列表，嵌套的列表，每个列表是【训练集，开发集，测试集】结果
-    :type accurcys:
+    :param yvalue: 纵坐标的值，例如: 准确率的列表，嵌套的列表，每个列表是【训练集，开发集，测试集】结果
+    :type yvalue:
+    :param ylimit: y轴的大小
     :return:
     :rtype:
     """
@@ -202,17 +236,18 @@ def plot_acc(title, seeds, accurcys):
     # 给柱状图分配位置和宽度
     x = np.arange(len(seeds))  # the label locations
     width = 0.6/3  # Bar的宽度
-    accurcys = np.array(accurcys).T
+    yvalue = np.array(yvalue).T
 
     fig, ax = plt.subplots()
-    rects1 = ax.bar(x - width, accurcys[0], width, label='训练集')
-    rects2 = ax.bar(x + width, accurcys[1], width, label='开发集')
-    rects3 = ax.bar(x, accurcys[2], width, label='测试集')
+    rects1 = ax.bar(x - width, yvalue[0], width, label='训练集')
+    rects2 = ax.bar(x + width, yvalue[1], width, label='开发集')
+    rects3 = ax.bar(x, yvalue[2], width, label='测试集')
     # 设置y坐标轴长度
-    ax.set_ylim([0, 100])
+    if ylimit:
+        ax.set_ylim(ylimit)
 
     # 横坐标和纵坐标的设置
-    ax.set_ylabel('准确率')
+    ax.set_ylabel(yname)
     ax.set_title(title)
     ax.set_xlabel('随机数种子')
     ax.set_xticks(x)
