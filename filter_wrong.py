@@ -53,6 +53,7 @@ def train_and_filter(seed, task ,wrong_path):
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
         absa_ids, dems_ids, purchase_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
+        # 注意这里的data_id是对应的源数据的索引，是全局唯一的
         absa_train_data_id, absa_dev_data_id, absa_test_data_id = absa_ids
         dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = dems_ids
         purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = purchase_ids
@@ -147,11 +148,103 @@ def do_analysis(analysis_path):
         with open(sd_file_path, 'rb') as f:
             #单次的运行结果
             sd_res = json.load(f)
+            # 预处理下sd_res，为了以后的绘图更方便，主要统计下预测错误的样本，bad_case的基本信息
         seeds_result.append(sd_res)
     #准确率的绘制
-    analysis_acc(seeds_result)
+    # analysis_acc(seeds_result)
     #样本数量绘制
-    analysis_sample_num(seeds_result)
+    # analysis_sample_num(seeds_result)
+    # 只画出每次seed的错误的样本数量
+    analysis_bad_sample_num(seeds_result)
+    # 分析总的错误的样本，重复出错的和只出错一次的
+    total_bad_sample_num(seeds_result)
+def total_bad_sample_num(seeds_result):
+    """
+    几次seed预测后，总的预测错误的样本数量，总的出错数量，一个是重复出错的样本的数量，一个是几次seed后只有一次的出错的数量，会去重
+    :param seeds_result:
+    :type seeds_result:
+    :return:
+    :rtype:
+    """
+    plot_x = ["1"]  #没用到
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    def compaire(predict,gold,sample_id):
+        diff_id = []
+        for p,g,s in zip(predict,gold,sample_id):
+            if p != g:
+                diff_id.append(s)
+        return diff_id
+    def collect_value(sd_res,task):
+        # 返回预测错误的id, 错误id是对应的源数据的索引，是全局唯一的
+        t_id = compaire(sd_res[task]['train_predict_labels'], sd_res[task]['train_gold_labels'],sd_res[task]['train_data_id'])
+        d_id = compaire(sd_res[task]['dev_predict_labels'], sd_res[task]['dev_gold_labels'],sd_res[task]['train_data_id'])
+        s_id = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'],sd_res[task]['train_data_id'])
+        merge_id = t_id + d_id + s_id
+        return merge_id
+    absa_counter = collections.Counter()
+    dem8_counter = collections.Counter()
+    purchase_counter = collections.Counter()
+    for sd_res in seeds_result:
+        # plot_seeds.append()
+        absa_bad_id = collect_value(sd_res,"absa")
+        absa_counter.update(absa_bad_id)
+        dem8_bad_id = collect_value(sd_res, "dem8")
+        dem8_counter.update(dem8_bad_id)
+        purchase_bad_id = collect_value(sd_res, "purchase")
+        purchase_counter.update(purchase_bad_id)
+    #统计和绘图
+    # 错误次数出现1次的样本
+    a1 = {x: count for x, count in absa_counter.items() if count == 1}
+    d1 = {x: count for x, count in dem8_counter.items() if count == 1}
+    p1 = {x: count for x, count in purchase_counter.items() if count == 1}
+    #预测错误多于一次的
+    ma = len(absa_counter) - len(a1)
+    md = len(dem8_counter) - len(d1)
+    mp = len(purchase_counter) - len(p1)
+    absa_plot_acc_data.append([len(absa_counter),len(a1),ma])
+    dem8_plot_acc_data.append([len(dem8_counter), len(d1), md])
+    purchase_plot_acc_data.append([len(purchase_counter), len(p1), mp])
+    plot_bar(title="所有seed情感任务absa的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=absa_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
+    plot_bar(title="所有seed属性判断dem8的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=dem8_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
+    plot_bar(title="所有seed购买意向purchase的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=purchase_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
+
+def analysis_bad_sample_num(seeds_result):
+    """
+    读取每个seed种子的结果，绘制错误的样本的数量
+    :param seeds_result:
+    :type seeds_result:
+    :return:
+    :rtype:
+    """
+    def compaire(a, b):
+        assert len(a) == len(b), "a和b的数量应该相等"
+        same_sample = [i for i, j in zip(a, b) if i == j]
+        diff_num = len(a) - len(same_sample)
+        return diff_num, len(same_sample)
+    plot_seeds = [1,2]
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    def collect_value(sd_res,task):
+        a, _ = compaire(sd_res[task]['train_predict_labels'], sd_res[task]['train_gold_labels'])
+        b, _ = compaire(sd_res[task]['dev_predict_labels'], sd_res[task]['dev_gold_labels'])
+        c, _ = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'])
+        return a,b,c
+    for sd_res in seeds_result:
+        # plot_seeds.append()
+        a,b,c = collect_value(sd_res,"absa")
+        absa_plot_acc_data.append([a,b,c])
+        # dem8的准确率收集
+        a, b, c = collect_value(sd_res, "dem8")
+        dem8_plot_acc_data.append([a, b, c])
+        # purchase
+        a, b, c = collect_value(sd_res, "purchase")
+        purchase_plot_acc_data.append([a, b, c])
+    plot_bar(title="情感任务absa的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
+    plot_bar(title="属性判断dem8的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
+    plot_bar(title="购买意向purchase的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
 
 def analysis_sample_num(seeds_result):
     """
@@ -181,9 +274,9 @@ def analysis_sample_num(seeds_result):
         purchase_dev_acc = len(sd_res['purchase']['dev_data_id'])
         purchase_test_acc = len(sd_res['purchase']['test_data_id'])
         purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
-    plot_bar(title="情感任务absa的样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
-    plot_bar(title="属性判断dem8的样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
-    plot_bar(title="购买意向purchase的样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
+    plot_bar(title="情感任务absa的总样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
+    plot_bar(title="属性判断dem8的总样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
+    plot_bar(title="购买意向purchase的总样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
 
 def analysis_acc(seeds_result):
     """
@@ -217,16 +310,18 @@ def analysis_acc(seeds_result):
     plot_bar(title="属性判断dem8的准确率",yname="准确率",seeds=plot_seeds, yvalue=dem8_plot_acc_data,ylimit=[0, 100])
     plot_bar(title="购买意向purchase的准确率",yname="准确率",seeds=plot_seeds, yvalue=purchase_plot_acc_data,ylimit=[0, 100])
 
-def plot_bar(title,yname,seeds, yvalue, ylimit=None):
+def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_group_labels=["训练集","开发集","测试集"]):
     """
     绘制准确率的柱状图
     :param title:  绘图显示的标题
     :type title:
-    :param seeds: 随机数种子的列表
+    :param seeds: 随机数种子的列表，是标签而已
     :type seeds:
     :param yvalue: 纵坐标的值，例如: 准确率的列表，嵌套的列表，每个列表是【训练集，开发集，测试集】结果
     :type yvalue:
     :param ylimit: y轴的大小
+    :param xname: x轴的名字
+    :param bar_group_labels: 一组中，每个bar代表的名字，对应yvalue的值
     :return:
     :rtype:
     """
@@ -240,9 +335,9 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None):
     yvalue = np.array(yvalue).T
 
     fig, ax = plt.subplots()
-    rects1 = ax.bar(x - width, yvalue[0], width, label='训练集')
-    rects2 = ax.bar(x + width, yvalue[1], width, label='开发集')
-    rects3 = ax.bar(x, yvalue[2], width, label='测试集')
+    rects1 = ax.bar(x - width, yvalue[0], width, label=bar_group_labels[0])
+    rects2 = ax.bar(x + width, yvalue[1], width, label=bar_group_labels[1])
+    rects3 = ax.bar(x, yvalue[2], width, label=bar_group_labels[2])
     # 设置y坐标轴长度
     if ylimit:
         ax.set_ylim(ylimit)
@@ -250,7 +345,7 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None):
     # 横坐标和纵坐标的设置
     ax.set_ylabel(yname)
     ax.set_title(title)
-    ax.set_xlabel('随机数种子')
+    ax.set_xlabel(xname)
     ax.set_xticks(x)
     ax.set_xticklabels(seeds)
     # 显示legend，即说明,哪个bar的颜色是哪个
