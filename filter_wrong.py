@@ -13,6 +13,8 @@ import collections
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+mpl.rcParams['font.family'] = ['SimHei']
+mpl.rcParams['axes.unicode_minus'] = False
 
 def got_args():
     parser = argparse.ArgumentParser()
@@ -155,9 +157,83 @@ def do_analysis(analysis_path):
     #样本数量绘制
     # analysis_sample_num(seeds_result)
     # 只画出每次seed的错误的样本数量
-    analysis_bad_sample_num(seeds_result)
+    # analysis_bad_sample_num(seeds_result)
     # 分析总的错误的样本，重复出错的和只出错一次的
-    total_bad_sample_num(seeds_result)
+    # total_bad_sample_num(seeds_result)
+    # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
+    total_bad_sample_bar(seeds_result)
+
+def simple_bar_plot(x, y, title, xname, yname):
+    """
+    普通的柱状图
+    :param x: eg: [1, 2, 3, 4]
+    :type x:  是对应的x轴
+    :param y: eg: [1, 4, 9, 16]
+    :type y:
+    :param title: 绘图的标题
+    :param xname: "预测错误次数"
+    :type xname:
+    :param yname: "样本数量"
+    :type yname:
+    :return:
+    :rtype:
+    """
+    fig, ax = plt.subplots()
+    rects1 = ax.bar(x, y, width=0.3)
+    ax.bar_label(rects1, padding=3)
+    ax.set_title(title)
+    plt.xlabel(xname)
+    plt.ylabel(yname)
+    plt.show()
+def total_bad_sample_bar(seeds_result):
+    """
+    统计几次seed中预测错误的样本的重复次数
+    :param seeds_result:
+    :type seeds_result:
+    :return:
+    :rtype:
+    """
+    absa_plot_acc_data = []
+    dem8_plot_acc_data = []
+    purchase_plot_acc_data = []
+    def compaire(predict,gold,sample_id):
+        diff_id = []
+        for p,g,s in zip(predict,gold,sample_id):
+            if p != g:
+                diff_id.append(s)
+        return diff_id
+    def collect_value(sd_res,task):
+        # 返回预测错误的id, 错误id是对应的源数据的索引，是全局唯一的
+        t_id = compaire(sd_res[task]['train_predict_labels'], sd_res[task]['train_gold_labels'],sd_res[task]['train_data_id'])
+        d_id = compaire(sd_res[task]['dev_predict_labels'], sd_res[task]['dev_gold_labels'],sd_res[task]['train_data_id'])
+        s_id = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'],sd_res[task]['train_data_id'])
+        merge_id = t_id + d_id + s_id
+        return merge_id
+    absa_counter = collections.Counter()
+    dem8_counter = collections.Counter()
+    purchase_counter = collections.Counter()
+    for sd_res in seeds_result:
+        # plot_seeds.append()
+        absa_bad_id = collect_value(sd_res,"absa")
+        absa_counter.update(absa_bad_id)
+        dem8_bad_id = collect_value(sd_res, "dem8")
+        dem8_counter.update(dem8_bad_id)
+        purchase_bad_id = collect_value(sd_res, "purchase")
+        purchase_counter.update(purchase_bad_id)
+    #统计和绘图
+    # 错误次数出现1次的样本
+    absa_wrong_count = collections.Counter([count for id, count in absa_counter.items()])
+    dem8_wrong_count = collections.Counter([count for id, count in dem8_counter.items()])
+    purchase_wrong_count = collections.Counter([count for id, count in purchase_counter.items()])
+    x_absa = list(absa_wrong_count.keys())
+    y_absa = list(absa_wrong_count.values())
+    x_dem8 = list(dem8_wrong_count.keys())
+    y_dem8 = list(dem8_wrong_count.values())
+    x_purchase = list(purchase_wrong_count.keys())
+    y_purchase = list(purchase_wrong_count.values())
+    simple_bar_plot(x_absa, y_absa, title="情感任务absa的预测错误的样本的频次", xname="错误频次", yname="样本数量")
+    simple_bar_plot(x_dem8, y_dem8, title="属性判断dem8的预测错误的样本的频次", xname="错误频次", yname="样本数量")
+    simple_bar_plot(x_purchase, y_purchase, title="购买意向purchase的预测错误的样本的频次", xname="错误频次", yname="样本数量")
 def total_bad_sample_num(seeds_result):
     """
     几次seed预测后，总的预测错误的样本数量，总的出错数量，一个是重复出错的样本的数量，一个是几次seed后只有一次的出错的数量，会去重
@@ -325,8 +401,6 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_
     :return:
     :rtype:
     """
-    mpl.rcParams['font.family'] = ['SimHei']
-    mpl.rcParams['axes.unicode_minus'] = False
     ## matplotlib 3.4.2版本以上支持
     # 横坐标
     # 给柱状图分配位置和宽度
