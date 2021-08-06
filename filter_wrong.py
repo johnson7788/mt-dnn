@@ -164,9 +164,9 @@ def do_analysis(analysis_path):
         purchase_dev_acc = sd_res['purchase']['dev_metrics']['ACC']
         purchase_test_acc = sd_res['purchase']['test_metrics']['ACC']
         purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
-    plot_acc(title="情感任务absa",seeds=plot_seeds, accurcys=absa_plot_acc_data)
-    plot_acc(title="属性判断dem8",seeds=plot_seeds, accurcys=dem8_plot_acc_data)
-    plot_acc(title="购买意向purchase",seeds=plot_seeds, accurcys=purchase_plot_acc_data)
+    plot_acc(title="情感任务absa的准确率",seeds=plot_seeds, accurcys=absa_plot_acc_data)
+    plot_acc(title="属性判断dem8的准确率",seeds=plot_seeds, accurcys=dem8_plot_acc_data)
+    plot_acc(title="购买意向purchase的准确率",seeds=plot_seeds, accurcys=purchase_plot_acc_data)
 
 def plot_acc(title, seeds, accurcys):
     """
@@ -182,18 +182,35 @@ def plot_acc(title, seeds, accurcys):
     """
     mpl.rcParams['font.family'] = ['SimHei']
     mpl.rcParams['axes.unicode_minus'] = False
-    x = np.arange(0, len(seeds))
-    w = 0.8 / 3
-    # 设置标题
+    ## matplotlib 3.4.2版本以上支持
+    # 横坐标
+    # 给柱状图分配位置和宽度
+    x = np.arange(len(seeds))  # the label locations
+    width = 0.6/3  # Bar的宽度
     accurcys = np.array(accurcys).T
-    plt.title(title)
-    plt.bar(x + w, accurcys[0], label='训练集', width=w, align='center')
-    plt.bar(x - w, accurcys[1], label='开发集', width=w, align='center')
-    plt.bar(x, accurcys[2], label='测试集', width=w, align='center')
-    plt.xticks(x, seeds)
-    plt.xlabel("随机数种子")
-    plt.ylabel("准确率")
-    plt.legend()
+
+    fig, ax = plt.subplots()
+    rects1 = ax.bar(x - width, accurcys[0], width, label='训练集')
+    rects2 = ax.bar(x + width, accurcys[1], width, label='开发集')
+    rects3 = ax.bar(x, accurcys[2], width, label='测试集')
+    # 设置y坐标轴长度
+    ax.set_ylim([0, 100])
+
+    # 横坐标和纵坐标的设置
+    ax.set_ylabel('准确率')
+    ax.set_title(title)
+    ax.set_xlabel('随机数种子')
+    ax.set_xticks(x)
+    ax.set_xticklabels(seeds)
+    # 显示legend，即说明,哪个bar的颜色是哪个
+    ax.legend()
+
+    # 给每个bar上面加显示的数值， padding是距离bar多高的位置显示数字
+    ax.bar_label(rects1, padding=3)
+    ax.bar_label(rects2, padding=3)
+    ax.bar_label(rects3, padding=3)
+    # 紧凑显示，显示的图更大一些
+    fig.tight_layout()
     plt.show()
 
 if __name__ == '__main__':
