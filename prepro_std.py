@@ -263,7 +263,7 @@ def main(args):
 
     for task in task_defs.get_task_names():
         task_def = task_defs.get_task_def(task)
-        logger.info("开始处理任务: %s" % task)
+        logger.info("开始tokenize任务: %s" % task)
         for split_name in task_def.split_names:
             file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
             if not os.path.exists(file_path):

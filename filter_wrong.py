@@ -15,7 +15,7 @@ def got_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=str, default="1,2",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
     parser.add_argument("--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有')
-    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0805", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用任务名+随机数种子命名")
+    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0806", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用任务名+随机数种子命名")
     args = parser.parse_args()
     return args
 
@@ -35,7 +35,7 @@ def train_and_filter(seed, task ,wrong_path):
     if not os.path.exists(wrong_path):
         os.makedirs(wrong_path)
     for sd in seeds:
-        wrong_sample_record = os.path.join(wrong_path, f"filter_seed{sd}.pkl")
+        wrong_sample_record = os.path.join(wrong_path, f"filter_seed_{sd}.pkl")
         records = collections.defaultdict(dict)
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
@@ -44,9 +44,10 @@ def train_and_filter(seed, task ,wrong_path):
         dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = dems_ids
         purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = purchase_ids
         # 第二步，源数据变token
-        os.system(command="python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --do_lower_case")
+        code = os.system(command="/home/wac/johnson/anaconda3/envs/py38/bin/python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --do_lower_case")
+        assert code == 0, "数据处理不成功，请检查"
         # 第三步，训练模型
-        model_output_dir = f"checkpoints/mtdnn_seed{sd}"
+        model_output_dir = f"checkpoints/mtdnn_seed_{sd}"
         train_options_list = {
             'data_dir': "--data_dir data_my/canonical_data/bert-base-chinese",  # 数据tokenize后的路径
             'init_checkpoint': "--init_checkpoint mt_dnn_models/bert_model_base_chinese.pt",  # base模型
@@ -64,8 +65,9 @@ def train_and_filter(seed, task ,wrong_path):
             'learning_rate': "--learning_rate 5e-5",
         }
         train_options = " ".join(train_options_list.values())
-        command = f"python train.py {train_options}"
-        os.system(command=command)
+        command = f"/home/wac/johnson/anaconda3/envs/py38/bin/python train.py {train_options}"
+        code = os.system(command=command)
+        assert code == 0, "训练模型失败，请检查"
         # 训练完成，使用训练完成的最后的epoch模型进行预测
         model_path = os.path.join(model_output_dir, "model_final.pt")
         tasks2id = {
@@ -94,7 +96,7 @@ def train_and_filter(seed, task ,wrong_path):
             for dataset in datasets:
                 prep_input = f"data_my/canonical_data/bert-base-chinese/{task}_{dataset}.json"
                 # 预测结果
-                test_metrics, predict_labels, scores, gold_labels, _ = do_predict(task, task_def="experiments/glue/glue_task_def.yml", task_id=task_id, prep_input=prep_input, with_label=True, score="predict_score.txt", max_seq_len=512, batch_size_eval=32, checkpoint=model_path,
+                test_metrics, predict_labels, scores, gold_labels, _ = do_predict(task, task_def="experiments/myexample/my_task_def.yml", task_id=task_id, prep_input=prep_input, with_label=True, score="predict_score.txt", max_seq_len=512, batch_size_eval=32, checkpoint=model_path,
                            cuda=True, do_collection=False, collection_file=None)
                 task_record[f"{dataset}_metrics"] = test_metrics
                 task_record[f"{dataset}_predict_labels"] = predict_labels
