@@ -5,6 +5,7 @@
 # @Author: johnson
 # @Desc  : 使用多个随机数种子训练模型，然后过滤出所有预测错误的样本，供以后进行分析
 import argparse
+import json
 import os
 from experiments.myexample.mydata_prepro import do_prepro, absa_source_file, dem8_source_file, purchase_source_file
 from predict import do_predict
@@ -18,21 +19,19 @@ def got_args():
     args = parser.parse_args()
     return args
 
-def train_and_filter(args):
+def train_and_filter(seed, task ,wrong_path):
     #解析参数
-    seed = args.seed
     seeds = seed.split(",")
     # 数字格式的随机数种子
     seeds = list(map(int, seeds))
     #对任务进行过滤
     all_tasks = ["absa","dem8","purchase"]
-    if args.task == "all":
+    if task == "all":
         tasks = all_tasks
     else:
-        assert args.task in all_tasks, "给定任务不在我们预设的任务中，请检查"
-        tasks = [args.task]
+        assert task in all_tasks, "给定任务不在我们预设的任务中，请检查"
+        tasks = [task]
     # 检查保存目录
-    wrong_path = args.wrong_path
     if not os.path.exists(wrong_path):
         os.makedirs(wrong_path)
     for sd in seeds:
@@ -74,8 +73,6 @@ def train_and_filter(args):
             "dem8": 1,
             "purchase": 2
         }
-        # 对于每个任务都进行测试
-        datasets = ["train","dev","test"]
         for task in tasks:
             task_record = {}
             if task == "absa":
@@ -92,16 +89,22 @@ def train_and_filter(args):
                 task_record["test_data_id"] = purchase_test_data_id
             task_id = tasks2id[task]
             # 对训练，测试，开发数据集都进行预测一下
+            # 对于每个任务都进行测试
+            datasets = ["train", "dev", "test"]
             for dataset in datasets:
                 prep_input = f"data_my/canonical_data/bert-base-chinese/{task}_{dataset}.json"
                 # 预测结果
                 test_metrics, predict_labels, scores, gold_labels, _ = do_predict(task, task_def="experiments/glue/glue_task_def.yml", task_id=task_id, prep_input=prep_input, with_label=True, score="predict_score.txt", max_seq_len=512, batch_size_eval=32, checkpoint=model_path,
                            cuda=True, do_collection=False, collection_file=None)
-
+                task_record[f"{dataset}_metrics"] = test_metrics
+                task_record[f"{dataset}_predict_labels"] = predict_labels
+                task_record[f"{dataset}_scores"] = scores
+                task_record[f"{dataset}_gold_labels"] = gold_labels
             records[task] = task_record
-    # 保存一次实验的seed结果
-
+        # 保存一次实验的seed结果
+        with open(wrong_sample_record, 'w') as f:
+            json.dump(records,f)
 
 if __name__ == '__main__':
     args = got_args()
-    train_and_filter(args)
+    train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
