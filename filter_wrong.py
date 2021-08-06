@@ -150,6 +150,7 @@ def do_analysis(analysis_path):
         seeds_result.append(sd_res)
     #准确率的绘制
     analysis_acc(seeds_result)
+    #样本数量绘制
     analysis_sample_num(seeds_result)
 
 def analysis_sample_num(seeds_result):
