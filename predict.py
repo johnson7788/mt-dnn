@@ -95,7 +95,7 @@ def do_predict(task, task_def, task_id, prep_input, with_label, score, max_seq_l
         results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
         dump(path=score, data=results)
         if with_label:
-            print(f"测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
+            print(f"测试的文件是{prep_input}, 测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
     # 把预测的id和gold的id变成标签名字
     id2label = task_def_list[task_id].label_vocab.ind2tok
     predict_labels = [id2label[p] for p in test_predictions]
