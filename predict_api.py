@@ -713,7 +713,7 @@ class TorchMTDNNModel(object):
                 data_one.append(keyword_data)
             result.append(data_one)
         return result
-    def predict_absa_dem8_k1_s1(self,data):
+    def predict_absa_dem8_k1_s1(self,data, full_score=False):
         """
         预测属性之后预测情感, 只给一个keyword，只搜索一个keyword
         :param data:
@@ -744,31 +744,21 @@ class TorchMTDNNModel(object):
         as_result = []
         if as_data:
             # 如果有需要预测情感的数据，那么预测情感的结果
-            as_predict = self.predict_batch(task_name='absa', data=as_data)
+            as_predict = self.predict_batch(task_name='absa', data=as_data,full_score=full_score)
             for as_idx in as_index:
                 if as_idx == "是":
                     one_predict = as_predict.pop(0)
                     label, score, src_data, locations = one_predict
-                    predict = {
-                        "label": label,
-                        "score": score,
-                        "content": src_data[0],
-                        "keyword": src_data[1],
-                        "locations": locations
-                    }
+                    # label, score, content, keyword,locations
+                    predict = [label,score, src_data[0], src_data[1], locations]
                 else:
                     one_src = demnot_data.pop(0)
                     content, keyword = one_src
-                    predict = {
-                        "label": 0,
-                        "score": 0,
-                        "content": content,
-                        "keyword": keyword,
-                        "locations": 0
-                    }
+                    # label, score, content, keyword,locations
+                    predict = [0, 0, content, keyword, 0]
                 as_result.append(predict)
         return as_result
-    def predict_absa_dem8_k1_sn(self,data):
+    def predict_absa_dem8_k1_sn(self,data, full_score=False):
         """
         预测属性之后预测情感, 只给一个keyword，搜索所有keyword，对所有keyword进行属性和情感判断
         :param data:
@@ -802,40 +792,56 @@ class TorchMTDNNModel(object):
         as_result = []
         if as_data:
             # 如果有需要预测情感的数据，那么预测情感的结果
-            as_predict = self.predict_batch(task_name='absa', data=as_data)
+            as_predict = self.predict_batch(task_name='absa', data=as_data, full_score=full_score)
             for as_idx in as_index:
                 if as_idx == "是":
                     one_predict = as_predict.pop(0)
                     label, score, src_data, locations = one_predict
-                    predict = {
-                        "label": label,
-                        "score": score,
-                        "content": src_data[0],
-                        "keyword": src_data[1],
-                        "locations": locations
-                    }
+                    # label, score, content, keyword,locations
+                    predict = [label, score, src_data[0], src_data[1], locations]
                 else:
                     one_src = demnot_data.pop(0)
                     content, keyword = one_src
-                    predict = {
-                        "label": 0,
-                        "score": 0,
-                        "content": content,
-                        "keyword": keyword,
-                        "locations": 0
-                    }
+                    # label, score, content, keyword,locations
+                    predict = [0, 0, content, keyword, 0]
                 as_result.append(predict)
         #返回个数与data源数据相同
         full_result = []
         if as_result:
-            for key_cnt in keyword_counts:
+            for key_idx, key_cnt in enumerate(keyword_counts):
                 one_result = []
                 for cnt in range(key_cnt):
                     key_result = as_result.pop(0)
                     one_result.append(key_result)
                 full_result.append(one_result)
-        return full_result
-
+        final_result = []
+        if full_result:
+            # 如果整个句子只有一个关键字，那么保留最终结果，即使没有情感，
+            # 如果有多个关键字，有的有情感，有的没有情感，那么只保留有情感的
+            # 如果多个关键字都没有情感， 那么保留最后一个就可以了
+            for res in full_result:
+                if len(res) == 1:
+                    # 如果唯一，那么加上结果
+                    final_result.append(res)
+                else:
+                    # 判断关键字，这里关键字都是相同的，只需判断label是否为0，去掉label为0的
+                    # 标签为0的那个结果
+                    empty_res = None
+                    # 将加入到结果中
+                    added_res = []
+                    for every_res in res:
+                        if every_res[0] == 0:
+                            empty_res = every_res
+                        else:
+                            added_res.append(every_res)
+                    # 如果最终added_res是有内容的，直接加入到结果中
+                    if added_res:
+                        final_result.append(added_res)
+                    else:
+                        # 如果没有内容，就把最后一个空的结果加入到结果中
+                        added_res.append(empty_res)
+                        final_result.append(added_res)
+        return final_result
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -884,10 +890,11 @@ def absa_dem8_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     search_first = jsonres.get('search_first', False)
+    full_score = jsonres.get('full_score', False)
     if search_first:
-        results = model.predict_absa_dem8_k1_s1(data=test_data)
+        results = model.predict_absa_dem8_k1_s1(data=test_data, full_score=full_score)
     else:
-        results = model.predict_absa_dem8_k1_sn(data=test_data)
+        results = model.predict_absa_dem8_k1_sn(data=test_data, full_score=full_score)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
