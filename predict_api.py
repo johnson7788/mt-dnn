@@ -591,7 +591,7 @@ class TorchMTDNNModel(object):
             prefix_name = self.type_to_prefix[type_name]
             prefix_data.append(prefix_name)
         return prefix_data
-    def predict_batch(self, task_name, data, with_label=False, aspect_base=True, full_score=False):
+    def predict_batch(self, task_name, data, with_label=False, aspect_base=True, full_score=False, search_first=True):
         """
         预测数据
         :param task_name:
@@ -603,17 +603,26 @@ class TorchMTDNNModel(object):
         :param aspect_base:  是否是aspect_base的任务, 返回aspect的位置
         :type aspect_base:
         :param full_score: bool, 返回的score是按照最大概率返回，还是返回一个列表，返回预测的结果的那个所有score
+        :param search_first: bool, 对于没有给定关键字位置的句子，自动搜索到的第一个关键字作为结果，不继续搜索, 为了收到的数据和返回的数据的条目相同
         :return:
         :rtype:
         """
         assert task_name in self.task_names, "指定的task不在我们的预设task内，所以不支持这个task"
+        # 如果给的数据没有位置信息，并且要搜索所有的keywords，那么keywords_index应该是有值的
+        keywords_index = None
         if aspect_base:
             if task_name == 'absa':
-                truncate_data, locations = self.aspect_base_truncate(data)
+                if search_first:
+                    truncate_data, locations = self.aspect_base_truncate(data,search_first=True)
+                else:
+                    truncate_data, locations, keywords_index = self.aspect_base_truncate(data,search_first=False)
             elif task_name == 'dem8':
                 # dem8和purchase都有prefix，
                 prefix_data = self.get_dem8_prefix(data)
-                truncate_data, locations = self.aspect_base_truncate(data,prefix_data=prefix_data)
+                if search_first:
+                    truncate_data, locations = self.aspect_base_truncate(data,prefix_data=prefix_data,search_first=search_first)
+                else:
+                    truncate_data, locations, keywords_index = self.aspect_base_truncate(data,search_first=False)
             else:
                 # purchase是把title作为prefix
                 truncate_data, locations = self.purchase_text_truncate(data)
@@ -641,11 +650,27 @@ class TorchMTDNNModel(object):
             predict_labels = [id2tok[p] for p in predictions]
             print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
         if aspect_base:
-            results = list(zip(predict_labels, scores, data, locations))
+            if keywords_index:
+                # 如果搜索了多个关键字，那么结果都是嵌套列表的形式返回
+                results = []
+                tmp_res = list(zip(predict_labels, scores,locations))
+                for idx, key_counts in enumerate(keywords_index):
+                    one_result = []
+                    #源数据的data的索引
+                    src_one_data = data[idx]
+                    for key_count in range(key_counts):
+                        keyword_result = tmp_res.pop(0)
+                        keyword_result = list(keyword_result)
+                        # 把源数据插入进去
+                        keyword_result.insert(2,src_one_data)
+                        one_result.append(keyword_result)
+                    results.append(one_result)
+            else:
+                results = list(zip(predict_labels, scores, data, locations))
         else:
             results = list(zip(predict_labels, scores, data))
         return results
-    def predict_dem8(self, data):
+    def predict_dem8_kn_s1(self, data):
         for idx, one_data in enumerate(data):
             if len(one_data) != 3:
                 return f"错误: 第{idx}条数据的结构不对，结构必须是[[句子，aspect关键字，类型]，...]"
@@ -688,6 +713,129 @@ class TorchMTDNNModel(object):
                 data_one.append(keyword_data)
             result.append(data_one)
         return result
+    def predict_absa_dem8_k1_s1(self,data):
+        """
+        预测属性之后预测情感, 只给一个keyword，只搜索一个keyword
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
+        dem_result = self.predict_batch(task_name='dem8', data=data, search_first=True)
+        #用于预测的数据收集
+        as_data = []
+        #用于索引是不预测了情感
+        as_index = []
+        #预测为不是某个属性的数据
+        demnot_data = []
+        for dr in dem_result:
+            # 一条情感的数据
+            dem_label, _, src_data, locations = dr
+            content, keyword, attr_type = src_data
+            start, end = locations
+            #是和否，加到新的列表，用于预测后返回
+            as_index.append(dem_label)
+            if dem_label == "是":
+                as_d = [content, keyword, start, end]
+                as_data.append(as_d)
+            else:
+                demnot_data.append([content,keyword])
+        # 汇总预测结果
+        as_result = []
+        if as_data:
+            # 如果有需要预测情感的数据，那么预测情感的结果
+            as_predict = self.predict_batch(task_name='absa', data=as_data)
+            for as_idx in as_index:
+                if as_idx == "是":
+                    one_predict = as_predict.pop(0)
+                    label, score, src_data, locations = one_predict
+                    predict = {
+                        "label": label,
+                        "score": score,
+                        "content": src_data[0],
+                        "keyword": src_data[1],
+                        "locations": locations
+                    }
+                else:
+                    one_src = demnot_data.pop(0)
+                    content, keyword = one_src
+                    predict = {
+                        "label": 0,
+                        "score": 0,
+                        "content": content,
+                        "keyword": keyword,
+                        "locations": 0
+                    }
+                as_result.append(predict)
+        return as_result
+    def predict_absa_dem8_k1_sn(self,data):
+        """
+        预测属性之后预测情感, 只给一个keyword，搜索所有keyword，对所有keyword进行属性和情感判断
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
+        dem_result = self.predict_batch(task_name='dem8', data=data, search_first=False)
+        #用于预测的数据收集
+        as_data = []
+        #用于索引是不预测了情感
+        as_index = []
+        #预测为不是某个属性的数据
+        demnot_data = []
+        # keyword_count, 每个content的keyword的个数
+        keyword_counts = [len(dr) for dr in dem_result]
+        for dr in dem_result:
+            for mr in dr:
+                # 一条情感的数据
+                dem_label, _, src_data, locations = mr
+                content, keyword, attr_type = src_data
+                start, end = locations
+                #是和否，加到新的列表，用于预测后返回
+                as_index.append(dem_label)
+                if dem_label == "是":
+                    as_d = [content, keyword, start, end]
+                    as_data.append(as_d)
+                else:
+                    demnot_data.append([content,keyword])
+        # 汇总预测结果
+        as_result = []
+        if as_data:
+            # 如果有需要预测情感的数据，那么预测情感的结果
+            as_predict = self.predict_batch(task_name='absa', data=as_data)
+            for as_idx in as_index:
+                if as_idx == "是":
+                    one_predict = as_predict.pop(0)
+                    label, score, src_data, locations = one_predict
+                    predict = {
+                        "label": label,
+                        "score": score,
+                        "content": src_data[0],
+                        "keyword": src_data[1],
+                        "locations": locations
+                    }
+                else:
+                    one_src = demnot_data.pop(0)
+                    content, keyword = one_src
+                    predict = {
+                        "label": 0,
+                        "score": 0,
+                        "content": content,
+                        "keyword": keyword,
+                        "locations": 0
+                    }
+                as_result.append(predict)
+        #返回个数与data源数据相同
+        full_result = []
+        if as_result:
+            for key_cnt in keyword_counts:
+                one_result = []
+                for cnt in range(key_cnt):
+                    key_result = as_result.pop(0)
+                    one_result.append(key_result)
+                full_result.append(one_result)
+        return full_result
+
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -719,6 +867,27 @@ def absa_predict_fullscore():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     results = model.predict_batch(task_name='absa', data=test_data, full_score=True)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/absa_dem8_predict", methods=['POST'])
+def absa_dem8_predict():
+    """
+    判断情感之前，判断属性，如果属性正确，才进行情感判断，否则不进行情感判断
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        test_data: 需要预测的数据，是一个单个词的句子, [('持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '遮瑕', '成分')]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspect),...,]
+    Returns: 返回格式是 [{'label': 0, 'score': 0, 'content': 0, 'keyword': 0, 'locations': 0}, {'label': '积极', 'score': 0.9996993541717529, 'content': '活动有赠品比较划算，之前买过快用完了，一支可以分两次使用，早上抗氧化必备VC', 'keyword': '抗氧化', 'locations': (31, 34)}
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    search_first = jsonres.get('search_first', False)
+    if search_first:
+        results = model.predict_absa_dem8_k1_s1(data=test_data)
+    else:
+        results = model.predict_absa_dem8_k1_sn(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
@@ -771,7 +940,7 @@ def dem8():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    results = model.predict_dem8(data=test_data)
+    results = model.predict_dem8_kn_s1(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
