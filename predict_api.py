@@ -863,11 +863,12 @@ def absa_predict():
 @app.route("/api/absa_predict_sentence", methods=['POST'])
 def absa_predict_sentence():
     """
+    # 使用aspect base的数据做句子情感的判断，准确性不高
     情感的预测接收POST请求，获取data参数, data信息包含aspect关键在在句子中的位置信息，方便我们截取，我们截取aspect关键字的前后一定的字符作为输入
     例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
     Args:
         test_data: 需要预测的数据，是一个文字列表, [content,...,]
-    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    Returns: 返回格式是 [(predicted_label, predict_score, src_data),...]
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
