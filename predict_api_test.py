@@ -81,6 +81,18 @@ def dopredict_absa_dem8(test_data, host="127.0.0.1:3326"):
     r = requests.post(url, headers=headers, data=json.dumps(data),  timeout=360)
     print(r.json())
     return r.json()
+def dopredict_absa_sentence(test_data, host="127.0.0.1:3326"):
+    """
+    预测属性之后预测情感
+    :param test_data: [('持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '遮瑕', '成分'),...]
+    :return:
+    """
+    url = f"http://{host}/api/absa_predict_sentence"
+    data = {'data': test_data}
+    headers = {'content-type': 'application/json'}
+    r = requests.post(url, headers=headers, data=json.dumps(data),  timeout=360)
+    print(r.json())
+    return r.json()
 if __name__ == '__main__':
     # host = "127.0.0.1:3326"
     # host = "192.168.50.139:3326"
@@ -95,6 +107,6 @@ if __name__ == '__main__':
     # dopredict_purchase(host=host,test_data=purchase_data)
     # dem8(host=host,test_data=dem8_dd)
     # 句子情感
-    # sentence_data = ['持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '活动有赠品比较划算，之前买过快用完了，一支可以分两次使用，早上抗氧化必备VC']
-    # dopredict_absa(host=host, test_data=sentence_data)
-    dopredict_absa_dem8(test_data=dem8_data,host=host)
+    sentence_data = ['持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '活动有赠品比较划算，之前买过快用完了，一支可以分两次使用，早上抗氧化必备VC']
+    dopredict_absa_sentence(host=host, test_data=sentence_data)
+    # dopredict_absa_dem8(test_data=dem8_data,host=host)
