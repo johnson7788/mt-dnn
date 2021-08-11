@@ -25,7 +25,7 @@ def got_args():
     parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
     parser.add_argument("--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
     parser.add_argument("--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有')
-    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0807", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
+    parser.add_argument("--wrong_path", type=str, default="wrong_sample/0811", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
 
     #分析badcase的参数
     parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
@@ -156,7 +156,7 @@ def do_analysis(analysis_path):
             # 预处理下sd_res，为了以后的绘图更方便，主要统计下预测错误的样本，bad_case的基本信息
         seeds_result.append(sd_res)
     #准确率的绘制
-    # analysis_acc(seeds_result)
+    analysis_acc(seeds_result)
     #样本数量绘制
     # analysis_sample_num(seeds_result)
     # 只画出每次seed的错误的样本数量
@@ -165,7 +165,7 @@ def do_analysis(analysis_path):
     # total_bad_sample_num(seeds_result)
     # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
     # total_bad_sample_bar(seeds_result)
-    export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result)
+    # export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result)
 def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result):
     """
     导出预测错误的样本
@@ -462,10 +462,25 @@ def analysis_acc(seeds_result):
         purchase_dev_acc = sd_res['purchase']['dev_metrics']['ACC']
         purchase_test_acc = sd_res['purchase']['test_metrics']['ACC']
         purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
+    #平均的准确率
+    def average_acc(acc_data):
+        # 加一个平均值，在末尾
+        avg_train = sum([i[0] for i in acc_data])/len(acc_data)
+        avg_dev = sum([i[1] for i in acc_data])/len(acc_data)
+        avg_test = sum([i[2] for i in acc_data])/len(acc_data)
+        acc_data.append([avg_train,avg_dev,avg_test])
+        return acc_data
+    absa_plot_acc_data = average_acc(absa_plot_acc_data)
+    dem8_plot_acc_data = average_acc(dem8_plot_acc_data)
+    purchase_plot_acc_data = average_acc(purchase_plot_acc_data)
+    # 999代表平均值
+    plot_seeds.append(999)
     plot_bar(title="情感任务absa的准确率",yname="准确率",seeds=plot_seeds, yvalue=absa_plot_acc_data, ylimit=[0, 100])
     plot_bar(title="属性判断dem8的准确率",yname="准确率",seeds=plot_seeds, yvalue=dem8_plot_acc_data,ylimit=[0, 100])
     plot_bar(title="购买意向purchase的准确率",yname="准确率",seeds=plot_seeds, yvalue=purchase_plot_acc_data,ylimit=[0, 100])
-
+    print(f"情感任务absa的准确率: {absa_plot_acc_data}")
+    print(f"属性判断dem8的准确率: {dem8_plot_acc_data}")
+    print(f"购买意向purchase的准确率: {purchase_plot_acc_data}")
 def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_group_labels=["训练集","开发集","测试集"]):
     """
     绘制准确率的柱状图
