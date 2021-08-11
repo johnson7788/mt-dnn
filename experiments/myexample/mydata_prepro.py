@@ -62,7 +62,7 @@ def do_truncate_data(data, left_max_seq_len=25, aspect_max_seq_len=25, right_max
     locations = []
     #保留原始数据，一同返回
     original_data = []
-    for one_data in data:
+    for idx, one_data in enumerate(data):
         if len(one_data) == 2:
             #不带aspect关键字的位置信息，自己查找位置
             content, aspect = one_data
@@ -103,7 +103,9 @@ def do_truncate_data(data, left_max_seq_len=25, aspect_max_seq_len=25, right_max
             locations.append((aspect_start, aspect_end))
             original_data.append(one_data)
         else:
-            raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
+            print(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5，跳过")
+            continue
+            # raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
     assert len(contents) == len(locations) == len(original_data)
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
@@ -113,15 +115,15 @@ def save_source_data(task_name="all"):
     from convert_label_studio_data import get_all, get_demision8, get_all_purchase
     #保存三个数据集的原始数据，方便以后不从label-studio读取
     if task_name == "absa" or task_name == "all":
-        absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False)
+        absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
         pickle.dump(absa_data, open(absa_source_file, "wb"))
     if task_name == "dem8" or task_name == "all":
         dem8_data = get_demision8(split=False,
                                  dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
-                                               '/opt/lavector/component', '/opt/lavector/fragrance'])
+                                               '/opt/lavector/component', '/opt/lavector/fragrance'],withmd5=True)
         pickle.dump(dem8_data, open(dem8_source_file, "wb"))
     if task_name == "purchase" or task_name == "all":
-        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False)
+        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True)
         pickle.dump(purchase_data, open(purchase_source_file, "wb"))
     if task_name == "all":
         return absa_data, dem8_data, purchase_data
@@ -146,11 +148,9 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right
                 all_data = pickle.load(f)
         else:
             all_data = save_source_data(task_name="absa")
-        # labels2id = {
-        #     "消极": 0,
-        #     "中性": 1,
-        #     "积极": 2,
-        # }
+
+        # 去除md5的位置，这个暂时不用
+        all_data = [d[:-1] for d in all_data]
     elif kind == 'dem8':
         # 注意dirpath_list使用哪些数据进行训练，那么预测时，也是用这样的数据
         # labels2id = {
@@ -163,6 +163,8 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right
                 all_data = pickle.load(f)
         else:
             all_data = save_source_data(task_name="dem8")
+        # 去除md5的位置，这个暂时不用
+        all_data = [d[:-1] for d in all_data]
     elif kind == 'purchase':
         # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
         if use_pickle:

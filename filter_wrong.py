@@ -230,9 +230,9 @@ def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_res
         df = pd.DataFrame(col_data, columns=columns)
         df.to_excel(saved_excel)
     # label是真实的标签
-    saved_data(sorted_data=sorted_absa, saved_excel=absa_save_excel, src_data=absa_data_dict,  columns=['text','keyword','start','end','label','channel','wordtype','wrong_num','id'])
-    saved_data(sorted_data=sorted_dem8, saved_excel=dem8_save_excel, src_data=dem8_data_dict, columns=['text','keyword','start','end','label','channel','wordtype','wrong_num','id'])
-    saved_data(sorted_data=sorted_purchase, saved_excel=purchase_save_excel, src_data=purchase_data_dict,columns=['text','title','keyword','start','end','label','wrong_num','id'])
+    saved_data(sorted_data=sorted_absa, saved_excel=absa_save_excel, src_data=absa_data_dict,  columns=['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'])
+    saved_data(sorted_data=sorted_dem8, saved_excel=dem8_save_excel, src_data=dem8_data_dict, columns=['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'])
+    saved_data(sorted_data=sorted_purchase, saved_excel=purchase_save_excel, src_data=purchase_data_dict,columns=['text','title','keyword','start','end','label','md5','wrong_num','id'])
     print(f"保存预测错误文件到{absa_save_excel}, {dem8_save_excel}, {purchase_save_excel}")
 def simple_bar_plot(x, y, title, xname, yname):
     """
