@@ -7,12 +7,16 @@
 import argparse
 import json
 import os
+
+import pandas as pd
+
 from experiments.myexample.mydata_prepro import do_prepro, absa_source_file, dem8_source_file, purchase_source_file
 from predict import do_predict
 import collections
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import pickle
 mpl.rcParams['font.family'] = ['SimHei']
 mpl.rcParams['axes.unicode_minus'] = False
 
@@ -25,7 +29,7 @@ def got_args():
 
     #分析badcase的参数
     parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
-    parser.add_argument("--analysis_path", type=str, default="wrong_sample/0806", help="分析保存预测错误的样本的文件夹，pkl格式")
+    parser.add_argument("--analysis_path", type=str, default="wrong_sample/0807", help="分析保存预测错误的样本的文件夹，pkl格式")
 
     args = parser.parse_args()
     return args
@@ -160,8 +164,76 @@ def do_analysis(analysis_path):
     # 分析总的错误的样本，重复出错的和只出错一次的
     # total_bad_sample_num(seeds_result)
     # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
-    total_bad_sample_bar(seeds_result)
-
+    # total_bad_sample_bar(seeds_result)
+    export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result)
+def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result):
+    """
+    导出预测错误的样本
+    :return:
+    :rtype:
+    """
+    def compaire(predict, gold, sample_id):
+        diff_id = []
+        for p, g, s in zip(predict, gold, sample_id):
+            if p != g:
+                diff_id.append(s)
+        return diff_id
+    def collect_value(sd_res, task):
+        # 返回预测错误的id, 错误id是对应的源数据的索引，是全局唯一的
+        t_id = compaire(sd_res[task]['train_predict_labels'], sd_res[task]['train_gold_labels'],
+                        sd_res[task]['train_data_id'])
+        d_id = compaire(sd_res[task]['dev_predict_labels'], sd_res[task]['dev_gold_labels'],
+                        sd_res[task]['train_data_id'])
+        s_id = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'],
+                        sd_res[task]['train_data_id'])
+        merge_id = t_id + d_id + s_id
+        return merge_id
+    absa_counter = collections.Counter()
+    dem8_counter = collections.Counter()
+    purchase_counter = collections.Counter()
+    for sd_res in seeds_result:
+        absa_bad_id = collect_value(sd_res, "absa")
+        absa_counter.update(absa_bad_id)
+        dem8_bad_id = collect_value(sd_res, "dem8")
+        dem8_counter.update(dem8_bad_id)
+        purchase_bad_id = collect_value(sd_res, "purchase")
+        purchase_counter.update(purchase_bad_id)
+    #按错误的次数排序id
+    sorted_absa = sorted(absa_counter.items(), key=lambda x: x[1],reverse=True)
+    sorted_dem8 = sorted(dem8_counter.items(), key=lambda x: x[1],reverse=True)
+    sorted_purchase = sorted(purchase_counter.items(), key=lambda x: x[1],reverse=True)
+    #索引原文，并导入到excel
+    with open(absa_src_data, "rb") as f:
+        absa_data = pickle.load(f)
+    with open(dem8_src_data, "rb") as f:
+        dem8_data = pickle.load(f)
+    with open(purchase_src_data, "rb") as f:
+        purchase_data = pickle.load(f)
+    #把数据变成字典的索引，那样，方便查找
+    absa_data_dict = {idx:i for idx, i in enumerate(absa_data)}
+    dem8_data_dict = {idx:i for idx, i in enumerate(dem8_data)}
+    purchase_data_dict = {idx:i for idx, i in enumerate(purchase_data)}
+    # 保存的excel的名称
+    absa_save_excel = "absa_wrong.xlsx"
+    dem8_save_excel = "dem8_wrong.xlsx"
+    purchase_save_excel = "purchase_wrong.xlsx"
+    def saved_data(sorted_data, saved_excel, src_data, columns):
+        col_data = []
+        for i in sorted_data:
+            id, wrong_num = i
+            data = src_data[id]
+            data = list(data)
+            data.append(wrong_num)
+            data.append(str(id))
+            col_data.append(data)
+            # id也加上
+        df = pd.DataFrame(col_data, columns=columns)
+        df.to_excel(saved_excel)
+    # label是真实的标签
+    saved_data(sorted_data=sorted_absa, saved_excel=absa_save_excel, src_data=absa_data_dict,  columns=['text','keyword','start','end','label','channel','wordtype','wrong_num','id'])
+    saved_data(sorted_data=sorted_dem8, saved_excel=dem8_save_excel, src_data=dem8_data_dict, columns=['text','keyword','start','end','label','channel','wordtype','wrong_num','id'])
+    saved_data(sorted_data=sorted_purchase, saved_excel=purchase_save_excel, src_data=purchase_data_dict,columns=['text','title','keyword','start','end','label','wrong_num','id'])
+    print(f"保存预测错误文件到{absa_save_excel}, {dem8_save_excel}, {purchase_save_excel}")
 def simple_bar_plot(x, y, title, xname, yname):
     """
     普通的柱状图
@@ -192,9 +264,6 @@ def total_bad_sample_bar(seeds_result):
     :return:
     :rtype:
     """
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
     def compaire(predict,gold,sample_id):
         diff_id = []
         for p,g,s in zip(predict,gold,sample_id):
@@ -212,7 +281,6 @@ def total_bad_sample_bar(seeds_result):
     dem8_counter = collections.Counter()
     purchase_counter = collections.Counter()
     for sd_res in seeds_result:
-        # plot_seeds.append()
         absa_bad_id = collect_value(sd_res,"absa")
         absa_counter.update(absa_bad_id)
         dem8_bad_id = collect_value(sd_res, "dem8")
@@ -230,6 +298,17 @@ def total_bad_sample_bar(seeds_result):
     y_dem8 = list(dem8_wrong_count.values())
     x_purchase = list(purchase_wrong_count.keys())
     y_purchase = list(purchase_wrong_count.values())
+    #错误次数大于1次的样本数量
+    absa_more1 = [v for k,v in absa_wrong_count.items() if k >1]
+    dem8_more1 = [v for k,v in dem8_wrong_count.items() if k >1]
+    purchase_more1 = [v for k,v in purchase_wrong_count.items() if k >1]
+    x1 = ["1次", "n次"]
+    y_absa1 = [sum(y_absa)-sum(absa_more1),sum(absa_more1)]
+    y_dem81 = [sum(y_dem8)-sum(dem8_more1),sum(dem8_more1)]
+    y_purchase1 = [sum(y_purchase)-sum(purchase_more1),sum(purchase_more1)]
+    simple_bar_plot(x1, y_absa1, title="情感任务absa的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
+    simple_bar_plot(x1, y_dem81, title="属性判断dem8的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
+    simple_bar_plot(x1, y_purchase1, title="购买意向purchase的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
     simple_bar_plot(x_absa, y_absa, title="情感任务absa的预测错误的样本的频次", xname="错误频次", yname="样本数量")
     simple_bar_plot(x_dem8, y_dem8, title="属性判断dem8的预测错误的样本的频次", xname="错误频次", yname="样本数量")
     simple_bar_plot(x_purchase, y_purchase, title="购买意向purchase的预测错误的样本的频次", xname="错误频次", yname="样本数量")
@@ -262,7 +341,6 @@ def total_bad_sample_num(seeds_result):
     dem8_counter = collections.Counter()
     purchase_counter = collections.Counter()
     for sd_res in seeds_result:
-        # plot_seeds.append()
         absa_bad_id = collect_value(sd_res,"absa")
         absa_counter.update(absa_bad_id)
         dem8_bad_id = collect_value(sd_res, "dem8")
@@ -298,7 +376,7 @@ def analysis_bad_sample_num(seeds_result):
         same_sample = [i for i, j in zip(a, b) if i == j]
         diff_num = len(a) - len(same_sample)
         return diff_num, len(same_sample)
-    plot_seeds = [1,2]
+    plot_seeds = []
     absa_plot_acc_data = []
     dem8_plot_acc_data = []
     purchase_plot_acc_data = []
@@ -308,7 +386,8 @@ def analysis_bad_sample_num(seeds_result):
         c, _ = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'])
         return a,b,c
     for sd_res in seeds_result:
-        # plot_seeds.append()
+        seed = sd_res['seed']
+        plot_seeds.append(seed)
         a,b,c = collect_value(sd_res,"absa")
         absa_plot_acc_data.append([a,b,c])
         # dem8的准确率收集
@@ -329,12 +408,13 @@ def analysis_sample_num(seeds_result):
     :return:
     :rtype:
     """
-    plot_seeds = [1,2]
+    plot_seeds = []
     absa_plot_acc_data = []
     dem8_plot_acc_data = []
     purchase_plot_acc_data = []
     for sd_res in seeds_result:
-        # plot_seeds.append()
+        seed = sd_res['seed']
+        plot_seeds.append(seed)
         absa_train_acc = len(sd_res['absa']['train_data_id'])
         absa_dev_acc = len(sd_res['absa']['dev_data_id'])
         absa_test_acc = len(sd_res['absa']['test_data_id'])
@@ -361,12 +441,13 @@ def analysis_acc(seeds_result):
     :return:
     :rtype:
     """
-    plot_seeds = [1,2]
+    plot_seeds = []
     absa_plot_acc_data = []
     dem8_plot_acc_data = []
     purchase_plot_acc_data = []
     for sd_res in seeds_result:
-        # plot_seeds.append()
+        seed = sd_res['seed']
+        plot_seeds.append(seed)
         absa_train_acc = sd_res['absa']['train_metrics']['ACC']
         absa_dev_acc = sd_res['absa']['dev_metrics']['ACC']
         absa_test_acc = sd_res['absa']['test_metrics']['ACC']
