@@ -34,7 +34,6 @@ def got_args():
 
     args = parser.parse_args()
     return args
-
 def train_and_filter(seed, task ,wrong_path):
     #解析参数
     seeds = seed.split(",")
@@ -127,7 +126,6 @@ def train_and_filter(seed, task ,wrong_path):
         # 保存一次实验的seed结果
         with open(wrong_sample_record, 'w') as f:
             json.dump(records,f)
-
 def do_analysis(analysis_path, analysis_tasks):
     """
     分析badcase
@@ -257,7 +255,6 @@ def analysis_every_class_wrong(seeds_result):
             simple_bar_plot(x=class_name, y=class_num, title=f"seed数为{seed}的{task}任务预测总数量", xname="类别的名称", yname="类别总样本数")
             simple_bar_plot(x=class_name, y=wrong_num, title=f"seed数为{seed}的{task}任务预测错误数量", xname="类别的名称", yname="类别错误数量")
             simple_bar_plot(x=class_name, y=wrong_percent, title=f"seed数为{seed}的{task}任务预测错误百分比", xname="类别的名称", yname="类别错误百分比")
-
 def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result):
     """
     导出预测错误的样本
@@ -454,7 +451,6 @@ def total_bad_sample_num(seeds_result):
     plot_bar(title="所有seed情感任务absa的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=absa_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
     plot_bar(title="所有seed属性判断dem8的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=dem8_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
     plot_bar(title="所有seed购买意向purchase的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=purchase_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
-
 def analysis_bad_sample_num(seeds_result):
     """
     读取每个seed种子的结果，绘制错误的样本的数量
@@ -491,7 +487,6 @@ def analysis_bad_sample_num(seeds_result):
     plot_bar(title="情感任务absa的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
     plot_bar(title="属性判断dem8的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
     plot_bar(title="购买意向purchase的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
-
 def analysis_sample_num(seeds_result):
     """
     读取每个seed种子的结果，绘制样本数量，样本数量基本是一样的
@@ -524,7 +519,6 @@ def analysis_sample_num(seeds_result):
     plot_bar(title="情感任务absa的总样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
     plot_bar(title="属性判断dem8的总样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
     plot_bar(title="购买意向purchase的总样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
-
 def analysis_acc(seeds_result):
     """
     读取每个seed种子的结果，绘图准确率
