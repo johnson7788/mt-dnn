@@ -29,7 +29,7 @@ def got_args():
 
     #分析badcase的参数
     parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
-    parser.add_argument("--analysis_path", type=str, default="wrong_sample/0807", help="分析保存预测错误的样本的文件夹，pkl格式")
+    parser.add_argument("--analysis_path", type=str, default="wrong_sample/0811", help="分析保存预测错误的样本的文件夹，pkl格式")
 
     args = parser.parse_args()
     return args
