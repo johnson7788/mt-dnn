@@ -248,7 +248,8 @@ def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--seed', type=int, default=13)
-    parser.add_argument('--root_dir', type=str, default='data_my')
+    parser.add_argument('--root_dir', type=str, default='data_my',help='数据集的保存路径')
+    parser.add_argument('--dataset', type=str, default='all',help='默认处理哪个数据集，all代表所有')
     parser.add_argument('--save_source_pkl', action="store_true", help='把原始数据导出到本地的data_my/canonical_data/source_data文件夹')
     parser.add_argument('--use_pkl', action="store_true", help='使用本地的pkl缓存的原始数据，不使用label-studio产生的数据')
     args = parser.parse_args()

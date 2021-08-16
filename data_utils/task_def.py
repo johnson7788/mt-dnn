@@ -16,6 +16,7 @@ class DataFormat(IntEnum):
     MRC = 4
     Seqence = 5
     MLM = 6
+    RELATION = 7
 
 class EncoderModelType(IntEnum):
     BERT = 1

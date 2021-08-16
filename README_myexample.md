@@ -72,3 +72,18 @@ predict.py --task_def experiments/myexample/my_task_def.yml --task purchase --ta
 # 新建一个flask的api接口
 predict_api.py
 
+
+
+# 添加一个新的关系判断的类型的任务
+修改任务的定义：data_utils/task_def.py, 例如加入RELATION
+```angular2html
+class DataFormat(IntEnum):
+    PremiseOnly = 1
+    PremiseAndOneHypothesis = 2
+    PremiseAndMultiHypothesis = 3
+    MRC = 4
+    Seqence = 5
+    MLM = 6
+    RELATION = 7
+```
+

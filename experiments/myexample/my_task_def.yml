@@ -61,3 +61,21 @@ purchase:
     - dev
     - test
   task_type: Classification
+brand:
+  description: 品牌功效关系判断，二分类关系
+  data_format: RELATION
+  enable_san: false
+  labels:
+    - 是
+    - 否
+  metric_meta:
+  - ACC
+  loss: CeCriterion
+  kd_loss: MseCriterion
+  adv_loss: SymKlCriterion
+  n_class: 2
+  split_names:
+    - train
+    - dev
+    - test
+  task_type: Classification
