@@ -1,3 +1,4 @@
+import collections
 import os
 import argparse
 import random
@@ -112,7 +113,7 @@ def do_truncate_data(data, left_max_seq_len=60, aspect_max_seq_len=10, right_max
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
 
-def truncate_relation(data, max_seq_len=400):
+def truncate_relation(data, max_seq_len=450):
     """
     只对text的长度进行截取，根据
     :param data: 源数据
@@ -125,9 +126,11 @@ def truncate_relation(data, max_seq_len=400):
     # 把最大长度减去20，作为实体词的长度的备用
     max_length = max_seq_len - 20
     truncate_data = []
+    length_counter = collections.Counter()
     for one in data:
         text = one['text']
         if len(text) > max_seq_len:
+            length_counter['超过最大长度'] += 1
             #开始截断
             h_entity = one['h']['name']
             t_entity = one['t']['name']
@@ -225,7 +228,10 @@ def truncate_relation(data, max_seq_len=400):
             one['h']['pos'][1] = h_end
             one['t']['pos'][0] = t_start
             one['t']['pos'][1] = t_end
+        else:
+            length_counter['未超最大长度'] += 1
         truncate_data.append(one)
+    print(f"超过和未超过最大长度{max_seq_len}的统计结果{length_counter}, 超过最大长度后将动态根据2个实体所在的位置对句子进行截断")
     return truncate_data
 
 def save_source_data(task_name="all"):
