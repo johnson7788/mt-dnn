@@ -226,6 +226,7 @@ def truncate_relation(data, max_seq_len=400):
             one['t']['pos'][0] = t_start
             one['t']['pos'][1] = t_end
         truncate_data.append(one)
+    return truncate_data
 
 def save_source_data(task_name="all"):
     sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
