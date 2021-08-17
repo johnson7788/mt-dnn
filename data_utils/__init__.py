@@ -36,6 +36,11 @@ def load_data(file_path, task_def):
                 "label": fields[1],
                 "premise": fields[2],
                 "hypothesis": fields[3]}
+        elif data_format == DataFormat.RELATION:
+            row = {
+                "uid": fields[0],
+                "label": fields[1],
+                "data": fields[2]}
         else:
             raise ValueError(data_format)
 

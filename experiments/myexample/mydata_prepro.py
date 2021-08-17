@@ -3,6 +3,7 @@ import argparse
 import random
 from sys import path
 import pickle
+import re
 
 path.append(os.getcwd())
 from experiments.common_utils import dump_rows
@@ -15,6 +16,7 @@ logger = create_logger(__name__, to_disk=True, log_file='mydata_prepro.log')
 absa_source_file = "data_my/canonical_data/source_data/absa.pkl"
 dem8_source_file = "data_my/canonical_data/source_data/dem8.pkl"
 purchase_source_file = "data_my/canonical_data/source_data/purchase.pkl"
+brand_source_file = "data_my/canonical_data/source_data/brand.pkl"
 
 def truncate(input_text, max_len, trun_post='post'):
     """
@@ -33,7 +35,7 @@ def truncate(input_text, max_len, trun_post='post'):
     else:
         return input_text
 
-def do_truncate_data(data, left_max_seq_len=25, aspect_max_seq_len=25, right_max_seq_len=25):
+def do_truncate_data(data, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
     """
     对数据做truncate
     :param data:针对不同类型的数据进行不同的截断
@@ -110,9 +112,124 @@ def do_truncate_data(data, left_max_seq_len=25, aspect_max_seq_len=25, right_max
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
 
+def truncate_relation(data, max_seq_len=400):
+    """
+    只对text的长度进行截取，根据
+    :param data: 源数据
+    :type data:
+    :param max_seq_len: 最大序列长度
+    :type max_seq_len:
+    :return:
+    :rtype:
+    """
+    # 把最大长度减去20，作为实体词的长度的备用
+    max_length = max_seq_len - 20
+    truncate_data = []
+    for one in data:
+        text = one['text']
+        if len(text) > max_seq_len:
+            #开始截断
+            h_entity = one['h']['name']
+            t_entity = one['t']['name']
+            h_length = len(one['h']['name'])
+            t_length = len(one['t']['name'])
+            h_start = one['h']['pos'][0]
+            h_end = one['h']['pos'][1]
+            t_start = one['t']['pos'][0]
+            t_end = one['t']['pos'][1]
+            # 先判断2个实体词之间的距离是否大于max_seq_len,如果大于，那么就2个实体词的2层分别保留一段位置，否则就从2个实体词的2层剪断
+            if h_start < t_start:
+                # 实体词h在前，t在后
+                if t_end - h_start > max_length:
+                    # 实体词的2册都进行截取,  形式是,被截断的示例是: xx|xxx entity1 xxx|xx   +  xxx|xx entity2 xxxx|x, 其中|表示被截断的标记
+                    half_length = max_length/2
+                    # 第一个实体前后的句子开始和结束位置
+                    l1_start = h_start - int(half_length/2)
+                    if l1_start < 0:
+                        l1_start = 0
+                    l1_end = h_end + int(half_length/2)
+                    l2_start = t_start - int(half_length/2)
+                    l2_end = t_end + int(half_length/2)
+                    newtext = text[l1_start:l1_end] + text[l2_start:l2_end]
+                    h_start = h_start - l1_start
+                    h_end = h_start + h_length
+                    #第二个实体位置新的开始
+                    t_start = t_start - l1_start - (l2_start- l1_end)
+                    t_end = t_start + t_length
+                    assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                    assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                    assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                else:
+                    # 在2侧分别剪断, 计算下2侧分别可以保存的长度, 形式是: xx|xxx entity1 xxxxx entity2 xxx|xx, |表示被截断
+                    can_keep_length = max_length - (t_end - h_start)
+                    #实体1左侧可以保留的长度
+                    left_keep = int(can_keep_length/2)
+                    right_keep = can_keep_length - left_keep
+                    # 句子的索引位置
+                    left_start = h_start - left_keep
+                    if left_start < 0:
+                        left_start = 0
+                    right_end = t_end + right_keep
+                    #截取后的文本长度
+                    newtext = text[left_start:right_end]
+                    h_start = h_start - left_start
+                    h_end = h_start + h_length
+                    t_start = t_start - left_start
+                    t_end = t_start + t_length
+                    assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                    assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                    assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+            else:
+                # 实体词h在后，t在前, 尚未修改, xx|xxx entity2 xxx|xx   +  xxx|xx entity1 xxxx|x, 其中|表示被截断的标记
+                if h_end - t_start > max_length:
+                    half_length = max_length / 2
+                    # 第一个实体前后的句子开始和结束位置
+                    l1_start = t_start - int(half_length / 2)
+                    if l1_start < 0:
+                        l1_start = 0
+                    l1_end = t_end + int(half_length / 2)
+                    l2_start = h_start - int(half_length / 2)
+                    l2_end = h_end + int(half_length / 2)
+                    newtext = text[l1_start:l1_end] + text[l2_start:l2_end]
+                    h_start = h_start - l1_start - (l2_start- l1_end)
+                    h_end = h_start + h_length
+                    t_start = t_start - l1_start
+                    t_end = t_start + t_length
+                    assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                    assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                    assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                else:
+                    # 在2层分别剪断, 计算下2层分别可以保存的长度, xx|xxx entity2 xxxxx entity1 xxx|xx, |表示被截断
+                    can_keep_length = max_length - (h_start - t_end)
+                    # 实体1左侧可以保留的长度
+                    left_keep = int(can_keep_length / 2)
+                    right_keep = can_keep_length - left_keep
+                    # 句子的索引位置
+                    left_start = t_start - left_keep
+                    if left_start < 0:
+                        left_start = 0
+                    right_end = h_end + right_keep
+                    # 截取后的文本长度
+                    newtext = text[left_start:right_end]
+                    h_start = h_start - left_start
+                    h_end = h_start + h_length
+                    t_start = t_start - left_start
+                    if t_start < 0:
+                        t_start = 0
+                    t_end = t_start + t_length
+                    assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                    assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                    assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+            one['text'] = newtext
+            one['h']['pos'][0] = h_start
+            one['h']['pos'][1] = h_end
+            one['t']['pos'][0] = t_start
+            one['t']['pos'][1] = t_end
+        truncate_data.append(one)
+
 def save_source_data(task_name="all"):
     sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
-    from convert_label_studio_data import get_all, get_demision8, get_all_purchase
+    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand
     #保存三个数据集的原始数据，方便以后不从label-studio读取
     if task_name == "absa" or task_name == "all":
         absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
@@ -125,19 +242,25 @@ def save_source_data(task_name="all"):
     if task_name == "purchase" or task_name == "all":
         purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True)
         pickle.dump(purchase_data, open(purchase_source_file, "wb"))
+    if task_name == "brand" or task_name == "all":
+        brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
+        pickle.dump(brand_data, open(brand_source_file, "wb"))
     if task_name == "all":
-        return absa_data, dem8_data, purchase_data
+        return absa_data, dem8_data, purchase_data, brand_data
     elif task_name == "absa":
         return absa_data
     elif task_name == "dem8":
         return dem8_data
-    else:
+    elif task_name == "brand":
+        return brand_data
+    elif task_name == "purchase":
         return purchase_data
 
-def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right_max_seq_len=60, use_pickle=False):
+def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60, use_pickle=False, do_truncate=True):
     """
     Aspect Base sentiment analysis
     :param kind: 是加载absa数据，还是dem8的数据
+    :param do_truncate: 是否做裁剪
     :return:
     :rtype:
     """
@@ -182,10 +305,23 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right
             end_idx = d[4] + title_len
             one_data = [text, d[2],start_idx,end_idx,d[5]]
             all_data.append(one_data)
+    elif kind == 'brand':
+        if use_pickle:
+            assert os.path.exists(brand_source_file), "源数据的pickle文件不存在，请检查"
+            with open(brand_source_file, 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = save_source_data(task_name="brand")
     else:
         print("数据的种类不存在，退出")
         sys.exit(1)
-    original_data, data, locations = do_truncate_data(all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
+    if do_truncate:
+        if kind == 'brand':
+            data = truncate_relation(data=all_data)
+        else:
+            original_data, data, locations = do_truncate_data(all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
+    else:
+        data = all_data
     if kind == 'dem8':
         #处理完成的数据加前缀
         # 加上前缀，给每条数据
@@ -199,7 +335,7 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=30, right
         data = new_data
     return data
 
-def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1):
+def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1, todict=True):
     """
     :param data:
     :type data:
@@ -210,6 +346,7 @@ def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0
     :param dev_rate:
     :type dev_rate:
     :param test_rate:
+    :param todict: 变成字典的格式
     :type test_rate:
     :return:
     :rtype:
@@ -238,11 +375,12 @@ def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0
             sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
             rows.append(sample)
         return rows
-    my_train_data = change_data(train_data)
-    my_dev_data = change_data(dev_data)
-    my_test_data = change_data(test_data)
-    print(f"训练集数量{len(my_train_data)}, 开发集数量{len(my_dev_data)}, 测试集数量{len(my_test_data)}")
-    return my_train_data, my_dev_data, my_test_data, train_data_id, dev_data_id, test_data_id
+    if todict:
+        train_data = change_data(train_data)
+        dev_data = change_data(dev_data)
+        test_data = change_data(test_data)
+    print(f"训练集数量{len(train_data)}, 开发集数量{len(dev_data)}, 测试集数量{len(test_data)}")
+    return train_data, dev_data, test_data, train_data_id, dev_data_id, test_data_id
 
 
 def parse_args():
@@ -256,7 +394,20 @@ def parse_args():
     return args
 
 
-def do_prepro(root, use_pkl, seed):
+def do_prepro(root, use_pkl, seed, dataset):
+    """
+
+    :param root: 数据的处理目录
+    :type root:
+    :param use_pkl: 是否使用已缓存的pkl读取
+    :type use_pkl:
+    :param seed: 随机数种子
+    :type seed:
+    :param dataset: 要处理的数据集，absa， dem8，purchase，还是all
+    :type dataset:
+    :return:
+    :rtype:
+    """
     assert os.path.exists(root), f"运行的路径是系统的根目录吗，请确保{root}文件夹存在"
     canonical_data_suffix = "canonical_data"
     canonical_data_root = os.path.join(root, canonical_data_suffix)
@@ -264,47 +415,70 @@ def do_prepro(root, use_pkl, seed):
         os.mkdir(canonical_data_root)
     print(f"将要保存到:{canonical_data_root}, 是否使用缓存的文件:{use_pkl}, 使用的随机数种子是:{seed}")
 
-    ##############ABSA 的数据##############
-    #保存成tsv文件
-    data = load_absa_dem8(kind='absa', use_pickle=use_pkl)
-    absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed)
-    #保存文件
-    absa_train_fout = os.path.join(canonical_data_root, 'absa_train.tsv')
-    absa_dev_fout = os.path.join(canonical_data_root, 'absa_dev.tsv')
-    absa_test_fout = os.path.join(canonical_data_root, 'absa_test.tsv')
-    dump_rows(absa_train_data, absa_train_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(absa_dev_data, absa_dev_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(absa_test_data, absa_test_fout, DataFormat.PremiseAndOneHypothesis)
-    logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
+    if dataset == 'all' or dataset == 'absa':
+        ##############ABSA 的数据##############
+        #保存成tsv文件
+        data = load_absa_dem8(kind='absa', use_pickle=use_pkl)
+        absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed)
+        #保存文件
+        absa_train_fout = os.path.join(canonical_data_root, 'absa_train.tsv')
+        absa_dev_fout = os.path.join(canonical_data_root, 'absa_dev.tsv')
+        absa_test_fout = os.path.join(canonical_data_root, 'absa_test.tsv')
+        dump_rows(absa_train_data, absa_train_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(absa_dev_data, absa_dev_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(absa_test_data, absa_test_fout, DataFormat.PremiseAndOneHypothesis)
+        logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
 
-    ##############8个维度的数据##############
-    data = load_absa_dem8(kind='dem8', use_pickle=use_pkl)
-    dem8_train_data, dem8_dev_data, dem8_test_data,dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = split_save_data(data=data,random_seed=seed)
-    #保存文件
-    dem8_train_fout = os.path.join(canonical_data_root, 'dem8_train.tsv')
-    dem8_dev_fout = os.path.join(canonical_data_root, 'dem8_dev.tsv')
-    dem8_test_fout = os.path.join(canonical_data_root, 'dem8_test.tsv')
-    dump_rows(dem8_train_data, dem8_train_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(dem8_dev_data, dem8_dev_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(dem8_test_data, dem8_test_fout, DataFormat.PremiseAndOneHypothesis)
-    logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
+    if dataset == 'all' or dataset == 'dem8':
+        ##############8个维度的数据##############
+        data = load_absa_dem8(kind='dem8', use_pickle=use_pkl)
+        dem8_train_data, dem8_dev_data, dem8_test_data,dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = split_save_data(data=data,random_seed=seed)
+        #保存文件
+        dem8_train_fout = os.path.join(canonical_data_root, 'dem8_train.tsv')
+        dem8_dev_fout = os.path.join(canonical_data_root, 'dem8_dev.tsv')
+        dem8_test_fout = os.path.join(canonical_data_root, 'dem8_test.tsv')
+        dump_rows(dem8_train_data, dem8_train_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(dem8_dev_data, dem8_dev_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(dem8_test_data, dem8_test_fout, DataFormat.PremiseAndOneHypothesis)
+        logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
 
-    ##############购买意向数据##############
-    data = load_absa_dem8(kind='purchase', use_pickle=use_pkl)
-    purchase_train_data, purchase_dev_data, purchase_test_data, purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = split_save_data(data=data,random_seed=seed)
-    #保存文件
-    purchase_train_fout = os.path.join(canonical_data_root, 'purchase_train.tsv')
-    purchase_dev_fout = os.path.join(canonical_data_root, 'purchase_dev.tsv')
-    purchase_test_fout = os.path.join(canonical_data_root, 'purchase_test.tsv')
-    dump_rows(purchase_train_data, purchase_train_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
-    dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
-    logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
-    return (absa_train_data_id, absa_dev_data_id, absa_test_data_id), (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id), (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id)
+    if dataset == 'all' or dataset == 'absa':
+        ##############购买意向数据##############
+        data = load_absa_dem8(kind='purchase', use_pickle=use_pkl)
+        purchase_train_data, purchase_dev_data, purchase_test_data, purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = split_save_data(data=data,random_seed=seed)
+        #保存文件
+        purchase_train_fout = os.path.join(canonical_data_root, 'purchase_train.tsv')
+        purchase_dev_fout = os.path.join(canonical_data_root, 'purchase_dev.tsv')
+        purchase_test_fout = os.path.join(canonical_data_root, 'purchase_test.tsv')
+        dump_rows(purchase_train_data, purchase_train_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
+        dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
+        logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
+    if dataset == 'all' or dataset == 'brand':
+        data = load_absa_dem8(kind='brand', use_pickle=use_pkl, do_truncate=True)
+        brand_train_data, brand_dev_data, brand_test_data, brand_train_data_id, brand_dev_data_id, brand_test_data_id = split_save_data(data=data,random_seed=seed, todict=False)
+        #保存文件
+        brand_train_fout = os.path.join(canonical_data_root, 'brand_train.tsv')
+        brand_dev_fout = os.path.join(canonical_data_root, 'brand_dev.tsv')
+        brand_test_fout = os.path.join(canonical_data_root, 'brand_test.tsv')
+        dump_rows(brand_train_data, brand_train_fout, DataFormat.RELATION)
+        dump_rows(brand_dev_data, brand_dev_fout, DataFormat.RELATION)
+        dump_rows(brand_test_data, brand_test_fout, DataFormat.RELATION)
+        logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{brand_train_fout}, {brand_dev_fout}, {brand_test_fout}')
+    if dataset == 'all':
+        return (absa_train_data_id, absa_dev_data_id, absa_test_data_id), (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id), (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id), (brand_train_data_id, brand_dev_data_id, brand_test_data_id)
+    elif dataset == 'brand':
+        return brand_train_data_id, brand_dev_data_id, brand_test_data_id
+    elif dataset == 'absa':
+        absa_train_data_id, absa_dev_data_id, absa_test_data_id
+    elif dataset == 'dem8':
+        dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id
+    elif dataset == 'purchase':
+        purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id
 
 if __name__ == '__main__':
     args = parse_args()
     if args.save_source_pkl:
         save_source_data()
     else:
-        do_prepro(root=args.root_dir, use_pkl=args.use_pkl, seed=args.seed)
+        do_prepro(root=args.root_dir, use_pkl=args.use_pkl, seed=args.seed, dataset=args.dataset)

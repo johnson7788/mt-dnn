@@ -12,6 +12,7 @@ from data_utils.log_wrapper import create_logger
 from experiments.exp_def import TaskDefs
 from experiments.squad import squad_utils
 from transformers import AutoTokenizer
+import torch
 
 
 DEBUG_MODE = False
@@ -45,6 +46,48 @@ def feature_extractor(tokenizer, text_a, text_b=None, max_length=512, do_padding
         assert len(attention_mask) == max_length, "Error with input length {} vs {}".format(len(attention_mask), max_length)
         assert len(token_type_ids) == max_length, "Error with input length {} vs {}".format(len(token_type_ids), max_length)
     return input_ids, attention_mask, token_type_ids
+
+def relation_feature_extractor(tokenizer, item, max_length=512, do_padding=False):
+    """
+    关系判断的数据tokenize
+    :return:
+    :rtype:
+    """
+    # Sentence -> token
+    sentence = item['text']
+    pos_head = item['h']['pos']
+    pos_tail = item['t']['pos']
+
+    pos_min = pos_head
+    pos_max = pos_tail
+    if pos_head[0] > pos_tail[0]:
+        pos_min = pos_tail
+        pos_max = pos_head
+        rev = True
+    else:
+        rev = False
+
+    sent0 = tokenizer.tokenize(sentence[:pos_min[0]])
+    ent0 = tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
+    sent1 = tokenizer.tokenize(sentence[pos_min[1]:pos_max[0]])
+    ent1 = tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
+    sent2 = tokenizer.tokenize(sentence[pos_max[1]:])
+    ent0 = ['[unused0]'] + ent0 + ['[unused1]'] if not rev else ['[unused2]'] + ent0 + ['[unused3]']
+    ent1 = ['[unused2]'] + ent1 + ['[unused3]'] if not rev else ['[unused0]'] + ent1 + ['[unused1]']
+    re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+    indexed_tokens = tokenizer.convert_tokens_to_ids(re_tokens)
+    assert len(indexed_tokens) <= 512, "注意，长度过大，大于了最大长度512，请检查数据"
+    avai_len = len(indexed_tokens)
+    # Padding
+    if do_padding:
+        while len(indexed_tokens) < max_length:
+            indexed_tokens.append(0)  # 0 is id for [PAD]
+        indexed_tokens = indexed_tokens[:max_length]
+    # Attention mask
+    att_mask = [0] * len(indexed_tokens)
+    att_mask[:avai_len] = [1] * avai_len
+    token_type_ids = [0] * len(indexed_tokens)
+    return indexed_tokens, att_mask, token_type_ids
 
 def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
                max_seq_len=MAX_SEQ_LEN, lab_dict=None, do_padding=False, truncation=True):
@@ -230,9 +273,40 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
         build_data_sequence(data, dump_path, max_seq_len, tokenizer, lab_dict)
     elif data_format == DataFormat.MRC:
         build_data_mrc(data, dump_path, max_seq_len, tokenizer)
+    elif data_format == DataFormat.RELATION:
+        build_data_relation(data, dump_path, max_seq_len, tokenizer)
     else:
         raise ValueError(data_format)
 
+def build_data_relation(data, dump_path, max_seq_len=MAX_SEQ_LEN, tokenizer=None):
+    """
+    创建关系判断的数据集
+    :param data:
+    :type data:
+    :param dump_path: 导出路径
+    :type dump_path:
+    :param max_seq_len: 最大序列长度
+    :type max_seq_len:
+    :param tokenizer:
+    :type tokenizer:
+    :return:
+    :rtype:
+    """
+    with open(dump_path, 'w', encoding='utf-8') as writer:
+        for idx, sample in enumerate(data):
+            ids = sample['uid']
+            #一条包含text，头部实体，尾部实体，和实体位置的json的字符床
+            data = sample['data']
+            item = json.loads(data)
+            label = sample['label']
+            input_ids, input_mask, type_ids = relation_feature_extractor(tokenizer, item, max_length=max_seq_len, do_padding=False)
+            features = {
+                'uid': ids,
+                'label': label,
+                'token_id': input_ids,
+                'type_id': type_ids,
+                'attention_mask': input_mask}
+            writer.write('{}\n'.format(json.dumps(features)))
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -241,6 +315,7 @@ def parse_args():
                         help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
     parser.add_argument('--do_lower_case', action='store_true')
     parser.add_argument('--do_padding', action='store_true')
+    parser.add_argument('--dataset', type=str, default='all',help='处理哪个数据集')
     parser.add_argument('--root_dir', type=str, default='data/canonical_data',help='规范后的数据的位置，处理后的输出目录也在这个目录下，根据处理的模型的名字命名')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml")
 
@@ -263,21 +338,22 @@ def main(args):
 
     for task in task_defs.get_task_names():
         task_def = task_defs.get_task_def(task)
-        logger.info("开始tokenize任务: %s" % task)
-        for split_name in task_def.split_names:
-            file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
-            if not os.path.exists(file_path):
-                logger.warning(f"文件{file_path}不存在，请检查")
-                sys.exit(1)
-            rows = load_data(file_path, task_def)
-            dump_path = os.path.join(mt_dnn_root, "%s_%s.json" % (task, split_name))
-            logger.info(dump_path)
-            build_data(
-                rows,
-                dump_path,
-                tokenizer,
-                task_def.data_type,
-                lab_dict=task_def.label_vocab)
+        if args.dataset== 'all' or task == args.dataset:
+            logger.info("开始tokenize任务: %s" % task)
+            for split_name in task_def.split_names:
+                file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
+                if not os.path.exists(file_path):
+                    logger.warning(f"文件{file_path}不存在，请检查")
+                    sys.exit(1)
+                rows = load_data(file_path, task_def)
+                dump_path = os.path.join(mt_dnn_root, "%s_%s.json" % (task, split_name))
+                logger.info(dump_path)
+                build_data(
+                    rows,
+                    dump_path,
+                    tokenizer,
+                    task_def.data_type,
+                    lab_dict=task_def.label_vocab)
 
 
 if __name__ == '__main__':

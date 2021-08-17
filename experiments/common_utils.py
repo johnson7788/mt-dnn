@@ -1,5 +1,7 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
+import json
+
 from data_utils import DataFormat
 
 
@@ -13,7 +15,7 @@ def dump_rows(rows, out_path, data_format):
     with open(out_path, "w", encoding="utf-8") as out_f:
         row0 = rows[0]
         #data_format = detect_format(row0)
-        for row in rows:
+        for row_id, row in enumerate(rows):
             #assert data_format == detect_format(row), row
             if data_format == DataFormat.PremiseOnly:
                 for col in ["uid", "label", "premise"]:
@@ -41,5 +43,9 @@ def dump_rows(rows, out_path, data_format):
                     if "\t" in str(row[col]):
                         import pdb; pdb.set_trace()
                 out_f.write("%s\t%s\t%s\n" % (row["uid"], row["label"], row["premise"]))
+            elif data_format == DataFormat.RELATION:
+                label = row.pop("relation")
+                row.pop("md5")
+                out_f.write("%s\t%s\t%s\n" % (row_id,label,json.dumps(row)))
             else:
                 raise ValueError(data_format)
