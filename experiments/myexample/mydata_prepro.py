@@ -244,7 +244,7 @@ def save_source_data(task_name="all"):
     if task_name == "dem8" or task_name == "all":
         dem8_data = get_demision8(split=False,
                                  dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
-                                               '/opt/lavector/component', '/opt/lavector/fragrance'],withmd5=True)
+                                               '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify'],withmd5=True)
         pickle.dump(dem8_data, open(dem8_source_file, "wb"))
     if task_name == "purchase" or task_name == "all":
         purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True)
@@ -435,7 +435,7 @@ def do_prepro(root, use_pkl, seed, dataset):
         dump_rows(absa_dev_data, absa_dev_fout, DataFormat.PremiseAndOneHypothesis)
         dump_rows(absa_test_data, absa_test_fout, DataFormat.PremiseAndOneHypothesis)
         logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
-
+        print()
     if dataset == 'all' or dataset == 'dem8':
         ##############8个维度的数据##############
         data = load_absa_dem8(kind='dem8', use_pickle=use_pkl)
@@ -448,6 +448,7 @@ def do_prepro(root, use_pkl, seed, dataset):
         dump_rows(dem8_dev_data, dem8_dev_fout, DataFormat.PremiseAndOneHypothesis)
         dump_rows(dem8_test_data, dem8_test_fout, DataFormat.PremiseAndOneHypothesis)
         logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
+        print()
 
     if dataset == 'all' or dataset == 'absa':
         ##############购买意向数据##############
@@ -461,6 +462,7 @@ def do_prepro(root, use_pkl, seed, dataset):
         dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
         dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
         logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
+        print()
     if dataset == 'all' or dataset == 'brand':
         data = load_absa_dem8(kind='brand', use_pickle=use_pkl, do_truncate=True)
         brand_train_data, brand_dev_data, brand_test_data, brand_train_data_id, brand_dev_data_id, brand_test_data_id = split_save_data(data=data,random_seed=seed, todict=False)
@@ -472,6 +474,7 @@ def do_prepro(root, use_pkl, seed, dataset):
         dump_rows(brand_dev_data, brand_dev_fout, DataFormat.RELATION)
         dump_rows(brand_test_data, brand_test_fout, DataFormat.RELATION)
         logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{brand_train_fout}, {brand_dev_fout}, {brand_test_fout}')
+        print()
     if dataset == 'all':
         return (absa_train_data_id, absa_dev_data_id, absa_test_data_id), (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id), (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id), (brand_train_data_id, brand_dev_data_id, brand_test_data_id)
     elif dataset == 'brand':

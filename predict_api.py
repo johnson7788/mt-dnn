@@ -465,7 +465,8 @@ class TorchMTDNNModel(object):
             elif len(one_data) == 2 or len(one_data) == 3:
                 #不带aspect关键字的位置信息，自己查找位置
                 content, aspect = one_data[0], one_data[1]
-                iter = re.finditer(aspect, content)
+                print(one_data)
+                iter = re.finditer(re.escape(aspect), content)
                 for m in iter:
                     aspect_start, aspect_end = m.span()
                     new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
@@ -479,6 +480,11 @@ class TorchMTDNNModel(object):
                         break
                     else:
                         keywords_index[idx] += 1
+                else:
+                    # 没有搜到任何关键字，那么打印注意信息
+                    print(f"在content： {content}中，未搜到aspect:{aspect}, 返回一个00默认值")
+                    contents.append((content, aspect))
+                    locations.append((0, 0))
             elif len(one_data) == 4:
                 # 不带label时，长度是4，
                 content, aspect, aspect_start, aspect_end = one_data
