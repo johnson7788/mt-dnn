@@ -1125,7 +1125,20 @@ def verify_data(data, task):
             pos_text = text[attribute_pos_start:attribute_pos_end]
             if pos_text != attribute_name:
                 return f"第{idx}条的attribute name项数据对应的pos位置在原文中的位置不匹配,应该是{attribute_name},但是原文是{pos_text}"
-
+    if task == "purchase":
+        #校验购买意向， 数据格式应该是类似
+        # [[text,title,keyword],...]
+        for idx, d in enumerate(data):
+            if len(d) != 3:
+                return f"第{idx}条数据传入的数据长度不对，请检查"
+            # title可以为空，但是keyword必须要在text和title的组合内容中
+            content = d[0] + d[1]
+            keyword = d[2]
+            if keyword not in content:
+                #尝试变成小写
+                print(f"第{idx}条数据传入的数据的关键字可能是不在文本或标题中，变成小写后重试")
+                if keyword.lower() not in content.lower():
+                    return f"第{idx}条数据传入的数据的关键字不在文本和标题中，请检查"
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -1234,6 +1247,9 @@ def purchase_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     logger.info(f"要进行的任务是购买意向判断")
+    verify_msg = verify_data(test_data, task='purchase')
+    if verify_msg:
+        return jsonify(verify_msg), 210
     results = model.predict_batch(task_name='purchase', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")

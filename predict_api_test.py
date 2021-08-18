@@ -120,10 +120,10 @@ if __name__ == '__main__':
     # dopredict_absa(host=host,test_data=absa_data)
     # dopredict_absa_fullscore(host=host,test_data=absa_data)
     # dopredict_dem8(host=host,test_data=dem8_data)
-    # dopredict_purchase(host=host,test_data=purchase_data)
+    dopredict_purchase(host=host,test_data=purchase_data)
     # dem8(host=host,test_data=dem8_dd)
     # 句子情感
     # sentence_data = ['持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '活动有赠品比较划算，之前买过快用完了，一支可以分两次使用，早上抗氧化必备VC']
     # dopredict_absa_sentence(host=host, test_data=sentence_data)
     # dopredict_absa_dem8(test_data=dem8_data,host=host)
-    dopredict_brand(test_data=brand_data,host=host)
+    # dopredict_brand(test_data=brand_data,host=host)
