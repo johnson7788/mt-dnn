@@ -51,7 +51,8 @@ def train_and_filter(seed, task ,wrong_path):
         os.makedirs(wrong_path)
     #备份下源数据到wrong_path目录
     os.system(command=f"cp -a data_my/canonical_data/source_data {wrong_path}")
-    for sd in seeds:
+    for sd_idx, sd in enumerate(seeds):
+        print(f"正在进行测试第{sd_idx}个随机数种子{seed}")
         wrong_sample_record = os.path.join(wrong_path, f"filter_seed_{sd}.pkl")
         records = collections.defaultdict(dict)
         records['seed'] = sd

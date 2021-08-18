@@ -1276,6 +1276,7 @@ def brand_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
+
 if __name__ == "__main__":
     model = TorchMTDNNModel()
     app.run(host='0.0.0.0', port=3326, debug=False, threaded=False)
