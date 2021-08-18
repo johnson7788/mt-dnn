@@ -401,7 +401,7 @@ def parse_args():
     return args
 
 
-def do_prepro(root, use_pkl, seed, dataset):
+def do_prepro(root, use_pkl, seed, dataset='all'):
     """
 
     :param root: 数据的处理目录

@@ -46,6 +46,6 @@ def dump_rows(rows, out_path, data_format):
             elif data_format == DataFormat.RELATION:
                 label = row.pop("relation")
                 row.pop("md5")
-                out_f.write("%s\t%s\t%s\n" % (row_id,label,json.dumps(row)))
+                out_f.write("%s\t%s\t%s\n" % (row_id,label,json.dumps(row,ensure_ascii=False)))
             else:
                 raise ValueError(data_format)

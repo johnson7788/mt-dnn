@@ -20,6 +20,7 @@ from mt_dnn.batcher import Collater
 from experiments.mlm.mlm_utils import create_instances_from_document
 from mt_dnn.model import MTDNNModel
 import random
+import collections
 from data_utils.metrics import calc_metrics
 import numpy as np
 from data_utils.task_def import TaskType, DataFormat
@@ -109,171 +110,242 @@ class SinglePredictDataset(Dataset):
                                                                                                 max_length)
         return input_ids, attention_mask, token_type_ids
 
+    def build_data_premise_only(self,
+            data, max_seq_len=512, tokenizer=None):
+        """Build data of single sentence tasks
+        """
+        feature_datas = []
+        for idx, sample in enumerate(data):
+            ids = sample['uid']
+            premise = sample['premise']
+            label = sample['label']
+            input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, max_length=max_seq_len)
+            features = {
+                'uid': ids,
+                'label': label,
+                'token_id': input_ids,
+                'type_id': type_ids,
+                'attention_mask': input_mask}
+            feature_datas.append(features)
+        return feature_datas
+
+    def build_data_premise_and_one_hypo(self,
+            data, max_seq_len=512, tokenizer=None):
+        """Build data of sentence pair tasks
+        """
+        feature_datas = []
+        for idx, sample in enumerate(data):
+            premise = sample[0]
+            hypothesis = sample[1]
+            label = 0
+            input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
+                                                                     max_length=max_seq_len)
+            features = {
+                'uid': idx,
+                'label': label,
+                'token_id': input_ids,
+                'type_id': type_ids,
+                'attention_mask': input_mask}
+            feature_datas.append(features)
+        return feature_datas
+
+    def build_data_premise_and_multi_hypo(self,
+            data, max_seq_len=512, tokenizer=None):
+        """Build QNLI as a pair-wise ranking task
+        """
+        feature_datas = []
+        for idx, sample in enumerate(data):
+            premise = sample['premise']
+            hypothesis_list = sample['hypothesis']
+            label = sample['label']
+            input_ids_list = []
+            type_ids_list = []
+            attention_mask_list = []
+            for hypothesis in hypothesis_list:
+                input_ids, input_mask, type_ids = self.feature_extractor(tokenizer,
+                                                                         premise, hypothesis, max_length=max_seq_len)
+                input_ids_list.append(input_ids)
+                type_ids_list.append(type_ids)
+                attention_mask_list.append(input_mask)
+            features = {
+                'uid': idx,
+                'label': label,
+                'token_id': input_ids_list,
+                'type_id': type_ids_list,
+                'ruid': sample['ruid'],
+                'olabel': sample['olabel'],
+                'attention_mask': attention_mask_list}
+            feature_datas.append(features)
+        return feature_datas
+
+    def build_data_sequence(self,data, max_seq_len=512, tokenizer=None, label_mapper=None):
+        feature_datas = []
+        for idx, sample in enumerate(data):
+            premise = sample['premise']
+            tokens = []
+            labels = []
+            for i, word in enumerate(premise):
+                subwords = tokenizer.tokenize(word)
+                tokens.extend(subwords)
+                for j in range(len(subwords)):
+                    if j == 0:
+                        labels.append(sample['label'][i])
+                    else:
+                        labels.append(label_mapper['X'])
+            if len(premise) > max_seq_len - 2:
+                tokens = tokens[:max_seq_len - 2]
+                labels = labels[:max_seq_len - 2]
+
+            label = [label_mapper['CLS']] + labels + [label_mapper['SEP']]
+            input_ids = tokenizer.convert_tokens_to_ids([tokenizer.cls_token] + tokens + [tokenizer.sep_token])
+            assert len(label) == len(input_ids)
+            type_ids = [0] * len(input_ids)
+            features = {'uid': idx, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
+            feature_datas.append(features)
+        return feature_datas
+
+    def build_data_mrc(self,data, max_seq_len=512, tokenizer=None, label_mapper=None, is_training=True):
+        unique_id = 1000000000  # TODO: this is from BERT, needed to remove it...
+        feature_datas = []
+        for example_index, sample in enumerate(data):
+            doc = sample['premise']
+            query = sample['hypothesis']
+            label = sample['label']
+            doc_tokens, cw_map = squad_utils.token_doc(doc)
+            answer_start, answer_end, answer, is_impossible = squad_utils.parse_squad_label(label)
+            answer_start_adjusted, answer_end_adjusted = squad_utils.recompute_span(answer, answer_start,
+                                                                                    cw_map)
+            is_valid = squad_utils.is_valid_answer(doc_tokens, answer_start_adjusted, answer_end_adjusted,
+                                                   answer)
+            if not is_valid: continue
+            """
+            TODO --xiaodl: support RoBERTa
+            """
+            feature_list = squad_utils.mrc_feature(tokenizer,
+                                                   unique_id,
+                                                   example_index,
+                                                   query,
+                                                   doc_tokens,
+                                                   answer_start_adjusted,
+                                                   answer_end_adjusted,
+                                                   is_impossible,
+                                                   max_seq_len,
+                                                   512,
+                                                   180,
+                                                   answer_text=answer,
+                                                   is_training=True)
+            unique_id += len(feature_list)
+            for f_idx, feature in enumerate(feature_list):
+                so = json.dumps({'uid': f"{example_index}_{f_idx}",
+                                 'token_id': feature.input_ids,
+                                 'mask': feature.input_mask,
+                                 'type_id': feature.segment_ids,
+                                 'example_index': feature.example_index,
+                                 'doc_span_index': feature.doc_span_index,
+                                 'tokens': feature.tokens,
+                                 'token_to_orig_map': feature.token_to_orig_map,
+                                 'token_is_max_context': feature.token_is_max_context,
+                                 'start_position': feature.start_position,
+                                 'end_position': feature.end_position,
+                                 'label': feature.is_impossible,
+                                 'doc': doc,
+                                 'doc_offset': feature.doc_offset,
+                                 'answer': [answer]})
+                feature_datas.append(so)
+        return feature_datas
+
+    def build_data_relation(self,data, tokenizer, max_seq_len=512):
+        """
+        创建关系判断的数据集
+        :param data:
+        :type data:
+        :param dump_path: 导出路径
+        :type dump_path:
+        :param max_seq_len: 最大序列长度
+        :type max_seq_len:
+        :param tokenizer:
+        :type tokenizer:
+        :return:
+        :rtype:
+        """
+        feature_datas = []
+        for idx, item in enumerate(data):
+            # 一条包含text，头部实体，尾部实体，和实体位置的json的字符床
+            input_ids, input_mask, type_ids = self.relation_feature_extractor(tokenizer, item,
+                                                                              max_length=max_seq_len,
+                                                                              do_padding=False)
+            features = {
+                'uid': idx,
+                'label': 0,   # 假的label
+                'token_id': input_ids,
+                'type_id': type_ids,
+                'attention_mask': input_mask}
+            feature_datas.append(features)
+        return feature_datas
     def build_data(self, data, tokenizer, data_format=DataFormat.PremiseOnly,
                    max_seq_len=512, lab_dict=None, do_padding=False, truncation=True):
-        def build_data_premise_only(
-                data, max_seq_len=512, tokenizer=None):
-            """Build data of single sentence tasks
-            """
-            feature_datas = []
-            for idx, sample in enumerate(data):
-                ids = sample['uid']
-                premise = sample['premise']
-                label = sample['label']
-                input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, max_length=max_seq_len)
-                features = {
-                    'uid': ids,
-                    'label': label,
-                    'token_id': input_ids,
-                    'type_id': type_ids,
-                    'attention_mask': input_mask}
-                feature_datas.append(features)
-            return feature_datas
-
-        def build_data_premise_and_one_hypo(
-                data, max_seq_len=512, tokenizer=None):
-            """Build data of sentence pair tasks
-            """
-            feature_datas = []
-            for idx, sample in enumerate(data):
-                premise = sample[0]
-                hypothesis = sample[1]
-                label = 0
-                input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
-                                                                    max_length=max_seq_len)
-                features = {
-                    'uid': idx,
-                    'label': label,
-                    'token_id': input_ids,
-                    'type_id': type_ids,
-                    'attention_mask': input_mask}
-                feature_datas.append(features)
-            return feature_datas
-
-        def build_data_premise_and_multi_hypo(
-                data, max_seq_len=512, tokenizer=None):
-            """Build QNLI as a pair-wise ranking task
-            """
-            feature_datas = []
-            for idx, sample in enumerate(data):
-                premise = sample['premise']
-                hypothesis_list = sample['hypothesis']
-                label = sample['label']
-                input_ids_list = []
-                type_ids_list = []
-                attention_mask_list = []
-                for hypothesis in hypothesis_list:
-                    input_ids, input_mask, type_ids = self.feature_extractor(tokenizer,
-                                                                        premise, hypothesis, max_length=max_seq_len)
-                    input_ids_list.append(input_ids)
-                    type_ids_list.append(type_ids)
-                    attention_mask_list.append(input_mask)
-                features = {
-                    'uid': idx,
-                    'label': label,
-                    'token_id': input_ids_list,
-                    'type_id': type_ids_list,
-                    'ruid': sample['ruid'],
-                    'olabel': sample['olabel'],
-                    'attention_mask': attention_mask_list}
-                feature_datas.append(features)
-            return feature_datas
-
-        def build_data_sequence(data, max_seq_len=512, tokenizer=None, label_mapper=None):
-            feature_datas = []
-            for idx, sample in enumerate(data):
-                premise = sample['premise']
-                tokens = []
-                labels = []
-                for i, word in enumerate(premise):
-                    subwords = tokenizer.tokenize(word)
-                    tokens.extend(subwords)
-                    for j in range(len(subwords)):
-                        if j == 0:
-                            labels.append(sample['label'][i])
-                        else:
-                            labels.append(label_mapper['X'])
-                if len(premise) > max_seq_len - 2:
-                    tokens = tokens[:max_seq_len - 2]
-                    labels = labels[:max_seq_len - 2]
-
-                label = [label_mapper['CLS']] + labels + [label_mapper['SEP']]
-                input_ids = tokenizer.convert_tokens_to_ids([tokenizer.cls_token] + tokens + [tokenizer.sep_token])
-                assert len(label) == len(input_ids)
-                type_ids = [0] * len(input_ids)
-                features = {'uid': idx, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
-                feature_datas.append(features)
-            return feature_datas
-
-        def build_data_mrc(data, max_seq_len=512, tokenizer=None, label_mapper=None, is_training=True):
-            unique_id = 1000000000  # TODO: this is from BERT, needed to remove it...
-            feature_datas = []
-            for example_index, sample in enumerate(data):
-                doc = sample['premise']
-                query = sample['hypothesis']
-                label = sample['label']
-                doc_tokens, cw_map = squad_utils.token_doc(doc)
-                answer_start, answer_end, answer, is_impossible = squad_utils.parse_squad_label(label)
-                answer_start_adjusted, answer_end_adjusted = squad_utils.recompute_span(answer, answer_start,
-                                                                                        cw_map)
-                is_valid = squad_utils.is_valid_answer(doc_tokens, answer_start_adjusted, answer_end_adjusted,
-                                                       answer)
-                if not is_valid: continue
-                """
-                TODO --xiaodl: support RoBERTa
-                """
-                feature_list = squad_utils.mrc_feature(tokenizer,
-                                                       unique_id,
-                                                       example_index,
-                                                       query,
-                                                       doc_tokens,
-                                                       answer_start_adjusted,
-                                                       answer_end_adjusted,
-                                                       is_impossible,
-                                                       max_seq_len,
-                                                       512,
-                                                       180,
-                                                       answer_text=answer,
-                                                       is_training=True)
-                unique_id += len(feature_list)
-                for f_idx, feature in enumerate(feature_list):
-                    so = json.dumps({'uid': f"{example_index}_{f_idx}",
-                                     'token_id': feature.input_ids,
-                                     'mask': feature.input_mask,
-                                     'type_id': feature.segment_ids,
-                                     'example_index': feature.example_index,
-                                     'doc_span_index': feature.doc_span_index,
-                                     'tokens': feature.tokens,
-                                     'token_to_orig_map': feature.token_to_orig_map,
-                                     'token_is_max_context': feature.token_is_max_context,
-                                     'start_position': feature.start_position,
-                                     'end_position': feature.end_position,
-                                     'label': feature.is_impossible,
-                                     'doc': doc,
-                                     'doc_offset': feature.doc_offset,
-                                     'answer': [answer]})
-                    feature_datas.append(so)
-            return feature_datas
-
         if data_format == DataFormat.PremiseOnly:
-            feature_datas = build_data_premise_only(
+            feature_datas = self.build_data_premise_only(
                 data,
                 max_seq_len,
                 tokenizer)
         elif data_format == DataFormat.PremiseAndOneHypothesis:
-            feature_datas = build_data_premise_and_one_hypo(
+            feature_datas = self.build_data_premise_and_one_hypo(
                 data, max_seq_len, tokenizer)
         elif data_format == DataFormat.PremiseAndMultiHypothesis:
-            feature_datas = build_data_premise_and_multi_hypo(
+            feature_datas = self.build_data_premise_and_multi_hypo(
                 data, max_seq_len, tokenizer)
         elif data_format == DataFormat.Seqence:
-            feature_datas = build_data_sequence(data, max_seq_len, tokenizer, lab_dict)
+            feature_datas = self.build_data_sequence(data, max_seq_len, tokenizer, lab_dict)
         elif data_format == DataFormat.MRC:
-            feature_datas = build_data_mrc(data, max_seq_len, tokenizer)
+            feature_datas = self.build_data_mrc(data, max_seq_len, tokenizer)
+        elif data_format == DataFormat.RELATION:
+            feature_datas = self.build_data_relation(data, tokenizer)
         else:
             raise ValueError(data_format)
         return feature_datas
 
+    def relation_feature_extractor(self, tokenizer, item, max_length=512, do_padding=False):
+        """
+        关系判断的数据tokenize
+        :return:
+        :rtype:
+        """
+        # Sentence -> token
+        sentence = item['text']
+        pos_head = item['brand']['pos']
+        pos_tail = item['attribute']['pos']
+
+        pos_min = pos_head
+        pos_max = pos_tail
+        if pos_head[0] > pos_tail[0]:
+            pos_min = pos_tail
+            pos_max = pos_head
+            rev = True
+        else:
+            rev = False
+
+        sent0 = tokenizer.tokenize(sentence[:pos_min[0]])
+        ent0 = tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
+        sent1 = tokenizer.tokenize(sentence[pos_min[1]:pos_max[0]])
+        ent1 = tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
+        sent2 = tokenizer.tokenize(sentence[pos_max[1]:])
+        ent0 = ['[unused0]'] + ent0 + ['[unused1]'] if not rev else ['[unused2]'] + ent0 + ['[unused3]']
+        ent1 = ['[unused2]'] + ent1 + ['[unused3]'] if not rev else ['[unused0]'] + ent1 + ['[unused1]']
+        re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        indexed_tokens = tokenizer.convert_tokens_to_ids(re_tokens)
+        assert len(indexed_tokens) <= 512, "注意，长度过大，大于了最大长度512，请检查数据"
+        avai_len = len(indexed_tokens)
+        # Padding
+        if do_padding:
+            while len(indexed_tokens) < max_length:
+                indexed_tokens.append(0)  # 0 is id for [PAD]
+            indexed_tokens = indexed_tokens[:max_length]
+        # Attention mask
+        att_mask = [0] * len(indexed_tokens)
+        att_mask[:avai_len] = [1] * avai_len
+        token_type_ids = [0] * len(indexed_tokens)
+        return indexed_tokens, att_mask, token_type_ids
     def __len__(self):
         return len(self._data)
 
@@ -316,8 +388,8 @@ class TorchMTDNNModel(object):
         # 任务的配置文件
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
-        # absa 情感分析， dem8是8个维度的判断, purchase 购买意向
-        self.task_names = ['absa', 'dem8', 'purchase']
+        # absa 情感分析， dem8是8个维度的判断, purchase 购买意向, brand品牌功效关系判断
+        self.task_names = ['absa', 'dem8', 'purchase','brand']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度
@@ -848,6 +920,212 @@ class TorchMTDNNModel(object):
                         added_res.append(empty_res)
                         final_result.append(added_res)
         return final_result
+    def truncate_relation(self, data, max_seq_len=450):
+        """
+        只对text的长度进行截取，根据
+        :param data: 源数据
+        :type data:
+        :param max_seq_len: 最大序列长度
+        :type max_seq_len:
+        :return:
+        :rtype:
+        """
+        # 把最大长度减去20，作为实体词的长度的备用
+        max_length = max_seq_len - 20
+        truncate_data = []
+        length_counter = collections.Counter()
+        for one in data:
+            text = one['text']
+            if len(text) > max_seq_len:
+                length_counter['超过最大长度'] += 1
+                # 开始截断
+                h_entity = one['brand']['name']
+                t_entity = one['attribute']['name']
+                h_length = len(one['brand']['name'])
+                t_length = len(one['attribute']['name'])
+                h_start = one['brand']['pos'][0]
+                h_end = one['brand']['pos'][1]
+                t_start = one['attribute']['pos'][0]
+                t_end = one['attribute']['pos'][1]
+                # 先判断2个实体词之间的距离是否大于max_seq_len,如果大于，那么就2个实体词的2层分别保留一段位置，否则就从2个实体词的2层剪断
+                if h_start < t_start:
+                    # 实体词h在前，t在后
+                    if t_end - h_start > max_length:
+                        # 实体词的2册都进行截取,  形式是,被截断的示例是: xx|xxx entity1 xxx|xx   +  xxx|xx entity2 xxxx|x, 其中|表示被截断的标记
+                        half_length = max_length / 2
+                        # 第一个实体前后的句子开始和结束位置
+                        l1_start = h_start - int(half_length / 2)
+                        if l1_start < 0:
+                            l1_start = 0
+                        l1_end = h_end + int(half_length / 2)
+                        l2_start = t_start - int(half_length / 2)
+                        l2_end = t_end + int(half_length / 2)
+                        newtext = text[l1_start:l1_end] + text[l2_start:l2_end]
+                        h_start = h_start - l1_start
+                        h_end = h_start + h_length
+                        # 第二个实体位置新的开始
+                        t_start = t_start - l1_start - (l2_start - l1_end)
+                        t_end = t_start + t_length
+                        assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                        assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                    else:
+                        # 在2侧分别剪断, 计算下2侧分别可以保存的长度, 形式是: xx|xxx entity1 xxxxx entity2 xxx|xx, |表示被截断
+                        can_keep_length = max_length - (t_end - h_start)
+                        # 实体1左侧可以保留的长度
+                        left_keep = int(can_keep_length / 2)
+                        right_keep = can_keep_length - left_keep
+                        # 句子的索引位置
+                        left_start = h_start - left_keep
+                        if left_start < 0:
+                            left_start = 0
+                        right_end = t_end + right_keep
+                        # 截取后的文本长度
+                        newtext = text[left_start:right_end]
+                        h_start = h_start - left_start
+                        h_end = h_start + h_length
+                        t_start = t_start - left_start
+                        t_end = t_start + t_length
+                        assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                        assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                else:
+                    # 实体词h在后，t在前, 尚未修改, xx|xxx entity2 xxx|xx   +  xxx|xx entity1 xxxx|x, 其中|表示被截断的标记
+                    if h_end - t_start > max_length:
+                        half_length = max_length / 2
+                        # 第一个实体前后的句子开始和结束位置
+                        l1_start = t_start - int(half_length / 2)
+                        if l1_start < 0:
+                            l1_start = 0
+                        l1_end = t_end + int(half_length / 2)
+                        l2_start = h_start - int(half_length / 2)
+                        l2_end = h_end + int(half_length / 2)
+                        newtext = text[l1_start:l1_end] + text[l2_start:l2_end]
+                        h_start = h_start - l1_start - (l2_start - l1_end)
+                        h_end = h_start + h_length
+                        t_start = t_start - l1_start
+                        t_end = t_start + t_length
+                        assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                        assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                    else:
+                        # 在2层分别剪断, 计算下2层分别可以保存的长度, xx|xxx entity2 xxxxx entity1 xxx|xx, |表示被截断
+                        can_keep_length = max_length - (h_start - t_end)
+                        # 实体1左侧可以保留的长度
+                        left_keep = int(can_keep_length / 2)
+                        right_keep = can_keep_length - left_keep
+                        # 句子的索引位置
+                        left_start = t_start - left_keep
+                        if left_start < 0:
+                            left_start = 0
+                        right_end = h_end + right_keep
+                        # 截取后的文本长度
+                        newtext = text[left_start:right_end]
+                        h_start = h_start - left_start
+                        h_end = h_start + h_length
+                        t_start = t_start - left_start
+                        if t_start < 0:
+                            t_start = 0
+                        t_end = t_start + t_length
+                        assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
+                        assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
+                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                one['text'] = newtext
+                one['brand']['pos'][0] = h_start
+                one['brand']['pos'][1] = h_end
+                one['attribute']['pos'][0] = t_start
+                one['attribute']['pos'][1] = t_end
+            else:
+                length_counter['未超最大长度'] += 1
+            truncate_data.append(one)
+        print(f"超过和未超过最大长度{max_seq_len}的统计结果{length_counter}, 超过最大长度后将动态根据2个实体所在的位置对句子进行截断")
+        return truncate_data
+    def predict_brand(self, data):
+        """
+        预测品牌和属性的关系
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
+        truncate_data = self.truncate_relation(data)
+        test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len,
+                                             task_id=self.tasks_info['brand']['task_id'],
+                                             task_def=self.tasks_info['brand']['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,
+                               pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+            id2tok = self.tasks_info['brand']['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        result = list(zip(predict_labels,scores))
+        # 开始索引的位置
+        return result
+
+def verify_data(data, task):
+    """
+    校验用户传入的数据是否符合要求，不符合要求就会被返回错误信息, 如果符合要求，返回None, 否则返回检查的错误信息
+    :param data: 用户数据
+    :type data:
+    :param task: 任务的名称，不同任务的数据不同
+    :return:
+    :rtype:
+    """
+    if data is None or data == []:
+        return "传入的数据为空，请检查数据是否正确"
+    if task == "brand":
+        # 校验品牌功效的关系数据
+        if not isinstance(data, list):
+            return "传入的数据格式不对，应该是列表格式"
+        #检查每个列表中的每个数据
+        for idx,d in enumerate(data):
+            # eg: {"text": " malin goetz清洁面膜。净化清洁 补水。温和不刺激 敏感肌都可用。柏瑞特dr.brandt清洁面膜。深层清洁 抗氧化 排浊 紧致皮肤。伊菲丹超级面膜。急救修护 补水 紧致抗老 提亮肤色。菲洛嘉十全大补面膜。补水保湿 细腻毛孔 提亮肤色。法尔曼幸福面膜。补水 修护 抗老 唤肤。奥伦纳素冰白面膜。深层补水 细腻毛孔 提亮肤色 舒缓修复。@美妆薯  @美妆情报局", "brand": {"name": "菲洛嘉十全大补面膜", "pos": [98, 107]}, "attribute": {"name": "提亮", "pos": [162, 164]}}
+            if d.get('text') is None:
+                return f"第{idx}条数据没有text字段"
+            if d.get('brand') is None:
+                return f"第{idx}条数据没有brand字段"
+            if d.get('attribute') is None:
+                return f"第{idx}条数据没有attribute字段"
+            #校验brand和attribute中是否存在name和pos字段
+            brand = d['brand']
+            text = d['text']
+            if brand.get('name') is None:
+                return f"第{idx}条的brand项数据没有name字段"
+            if brand.get('pos') is None:
+                return f"第{idx}条的brand项数据没有pos字段"
+            #校验name要存在于text中，并且pos的位置是对的
+            brand_name = brand['name']
+            brand_pos = brand['pos']
+            brand_pos_start = brand_pos[0]
+            brand_pos_end = brand_pos[1]
+            pos_text = text[brand_pos_start:brand_pos_end]
+            if pos_text != brand_name:
+                return f"第{idx}条的brand name项数据对应的pos位置在原文中的位置不匹配,,应该是{brand_name},但是原文是{pos_text}"
+            attribute = d['attribute']
+            if attribute.get('name') is None:
+                return f"第{idx}条的attribute项数据没有name字段"
+            if attribute.get('pos') is None:
+                return f"第{idx}条的attribute项数据没有pos字段"
+            #校验name要存在于text中，并且pos的位置是对的
+            attribute_name = attribute['name']
+            attribute_pos = attribute['pos']
+            attribute_pos_start = attribute_pos[0]
+            attribute_pos_end = attribute_pos[1]
+            pos_text = text[attribute_pos_start:attribute_pos_end]
+            if pos_text != attribute_name:
+                return f"第{idx}条的attribute name项数据对应的pos位置在原文中的位置不匹配,应该是{attribute_name},但是原文是{pos_text}"
+
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -973,6 +1251,27 @@ def dem8():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     results = model.predict_dem8_kn_s1(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/brand_predict", methods=['POST'])
+def brand_predict():
+    """
+    品牌功效的关系判断
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [
+{"text": " malin goetz清洁面膜。净化清洁 补水。温和不刺激 敏感肌都可用。柏瑞特dr.brandt清洁面膜。深层清洁 抗氧化 排浊 紧致皮肤。伊菲丹超级面膜。急救修护 补水 紧致抗老 提亮肤色。菲洛嘉十全大补面膜。补水保湿 细腻毛孔 提亮肤色。法尔曼幸福面膜。补水 修护 抗老 唤肤。奥伦纳素冰白面膜。深层补水 细腻毛孔 提亮肤色 舒缓修复。@美妆薯  @美妆情报局", "brand": {"name": "菲洛嘉十全大补面膜", "pos": [98, 107]}, "attribute": {"name": "提亮", "pos": [162, 164]}}
+{"text": "修丽可有一说一真的好用啊  买爆r  买爆r  买爆r 。修丽可植萃亮妍精华露。色修又称色修精华，植物精萃，舒缓亮妍，白话一点就是，修护红敏，红血丝 祛痘印，肤色不匀称等。。修丽可cf精华。抗氧化防止皱纹生成，保护肌肤免受空气污染，抗衰指数5 同时有效的美白，淡化黑色素。。高端医美修丽可紫米精华。一瓶就含有10 玻色因，硬核抗老，饱满丰盈，抗衰紧致真的很心动，成分很安全敏感肌也可放心用哦！。修丽可b5保湿精华。兼具保湿和修护的两大功效，在给予水份锁住水份的同时，又能修护平日因刺激带来皮肤屏障损伤，很适合干敏肌的宝宝们 。修丽可发光瓶。3 传明酸   1 曲酸   5 烟酰胺   5 磺酸  去黄提亮 淡斑淡痘印 搭配同系列色修精华  高效淡化痘印的同时美白肌肤有效改善顽固黄褐斑。", "brand": {"name": "修丽可cf", "pos": [87, 92]}, "attribute": {"name": "抗衰", "pos": [116, 118]}}
+]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    verify_msg = verify_data(test_data, task='brand')
+    if verify_msg:
+        return jsonify(verify_msg), 210
+    results = model.predict_brand(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
