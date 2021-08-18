@@ -25,11 +25,11 @@ def got_args():
     parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
     parser.add_argument("-d","--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
     parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有')
-    parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/0811", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
+    parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/0818", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
 
     #分析badcase的参数
     parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
-    parser.add_argument("-p","--analysis_path", type=str, default="wrong_sample/0811", help="分析保存预测错误的样本的文件夹，pkl格式")
+    parser.add_argument("-p","--analysis_path", type=str, default="wrong_sample/0818", help="分析保存预测错误的样本的文件夹，pkl格式")
     parser.add_argument("-s","--analysis_tasks", type=str, default="accuracy,samplenum,badnum,totalbad,wrongnum,export,golden_class_num,class_wrong_num", help="分析保存预测错误的样本的文件夹，pkl格式")
 
     args = parser.parse_args()
