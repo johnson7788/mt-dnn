@@ -1082,8 +1082,11 @@ def verify_data(data, task):
     :return:
     :rtype:
     """
-    if data is None or data == []:
+    if data is None:
         return "传入的数据为空，请检查数据是否正确"
+    if data == []:
+        # 如果传入的数据是[]，直接返回[]
+        return []
     if task == "brand":
         # 校验品牌功效的关系数据
         if not isinstance(data, list):
@@ -1139,6 +1142,16 @@ def verify_data(data, task):
                 print(f"第{idx}条数据传入的数据的关键字可能是不在文本或标题中，变成小写后重试")
                 if keyword.lower() not in content.lower():
                     return f"第{idx}条数据传入的数据的关键字不在文本和标题中，请检查"
+    if task == 'dem8_predict':
+        if len(data) == 3:
+            #数据是(content,aspect,属性)
+            pass
+        elif len(data) ==5:
+            #数据是 (content,aspect,属性，start,end)
+            pass
+        else:
+            msg = "传入的数据的长度格式不符合要求，要求传入的nest list是2或4的长度"
+            return msg
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -1225,8 +1238,9 @@ def dem8_predict():
     """
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
-    if len(test_data[0]) != 3 and len(test_data[0]) != 5:
-        return jsonify("传入的数据的长度格式不符合要求，要求传入的nest list是2或4的长度"), 210
+    verify_msg = verify_data(test_data, task='dem8_predict')
+    if verify_msg is not None:
+        return jsonify(verify_msg), 210
     results = model.predict_batch(task_name='dem8', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
@@ -1248,7 +1262,7 @@ def purchase_predict():
     test_data = jsonres.get('data', None)
     logger.info(f"要进行的任务是购买意向判断")
     verify_msg = verify_data(test_data, task='purchase')
-    if verify_msg:
+    if verify_msg is not None:
         return jsonify(verify_msg), 210
     results = model.predict_batch(task_name='purchase', data=test_data)
     logger.info(f"收到的数据是:{test_data}")
@@ -1285,7 +1299,7 @@ def brand_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     verify_msg = verify_data(test_data, task='brand')
-    if verify_msg:
+    if verify_msg is not None:
         return jsonify(verify_msg), 210
     results = model.predict_brand(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
