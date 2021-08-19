@@ -37,3 +37,11 @@ dem8(host=host,test_data=dem8_dd)
 ```angular2html
 [[{'keyword': '遮瑕', 'labels': ['否'], 'locations': [[30, 32]], 'type': '成分'}, {'keyword': '粉底', 'labels': ['否', '否'], 'locations': [[20, 22], [34, 36]], 'type': '成分'}], [{'keyword': '抗氧化', 'labels': ['是'], 'locations': [[31, 34]], 'type': '成分'}], [{'keyword': '水润', 'labels': ['否', '是'], 'locations': [[4, 6], [115, 117]], 'type': '功效'}, {'keyword': '补水', 'labels': ['是'], 'locations': [[105, 107]], 'type': '功效'}], [{'keyword': '质感', 'labels': ['是'], 'locations': [[52, 54]], 'type': '功效'}], [{'keyword': '补水', 'labels': ['是'], 'locations': [[105, 107]], 'type': '功效'}]]
 ```
+
+购买意向
+/api/purchase_predict
+```angular2html
+输入： [[content, title, keyword],[content, title, keyword],....]
+
+输出: [('购买',0.9164005517959595, [content, title, keyword]), ...]
+```

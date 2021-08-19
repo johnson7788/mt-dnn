@@ -1143,10 +1143,10 @@ def verify_data(data, task):
                 if keyword.lower() not in content.lower():
                     return f"第{idx}条数据传入的数据的关键字不在文本和标题中，请检查"
     if task == 'dem8_predict':
-        if len(data) == 3:
+        if len(data[0]) == 3:
             #数据是(content,aspect,属性)
             pass
-        elif len(data) ==5:
+        elif len(data[0]) ==5:
             #数据是 (content,aspect,属性，start,end)
             pass
         else:
