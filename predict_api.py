@@ -669,7 +669,7 @@ class TorchMTDNNModel(object):
             prefix_name = self.type_to_prefix[type_name]
             prefix_data.append(prefix_name)
         return prefix_data
-    def predict_batch(self, task_name, data, with_label=False, aspect_base=True, full_score=False, search_first=True):
+    def predict_batch(self, task_name, data, with_label=False, aspect_base=True, full_score=False, search_first=True, softmax=True):
         """
         预测数据
         :param task_name:
@@ -717,7 +717,7 @@ class TorchMTDNNModel(object):
             ids = []
             for (batch_info, batch_data) in test_data:
                 batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
-                score, pred, gold = self.model.predict(batch_info, batch_data, full_score)
+                score, pred, gold = self.model.predict(batch_info, batch_data, full_score, softmax)
                 predictions.extend(pred)
                 golds.extend(gold)
                 scores.extend(score)
@@ -791,7 +791,7 @@ class TorchMTDNNModel(object):
                 data_one.append(keyword_data)
             result.append(data_one)
         return result
-    def predict_absa_dem8_k1_s1(self,data, full_score=False):
+    def predict_absa_dem8_k1_s1(self,data, full_score=False, softmax=True):
         """
         预测属性之后预测情感, 只给一个keyword，只搜索一个keyword
         :param data:
@@ -822,7 +822,7 @@ class TorchMTDNNModel(object):
         as_result = []
         if as_data:
             # 如果有需要预测情感的数据，那么预测情感的结果
-            as_predict = self.predict_batch(task_name='absa', data=as_data,full_score=full_score)
+            as_predict = self.predict_batch(task_name='absa', data=as_data,full_score=full_score,softmax=softmax)
             for as_idx in as_index:
                 if as_idx == "是":
                     one_predict = as_predict.pop(0)
@@ -1218,8 +1218,9 @@ def absa_dem8_predict():
     test_data = jsonres.get('data', None)
     search_first = jsonres.get('search_first', False)
     full_score = jsonres.get('full_score', False)
+    softmax = jsonres.get('softmax', True)
     if search_first:
-        results = model.predict_absa_dem8_k1_s1(data=test_data, full_score=full_score)
+        results = model.predict_absa_dem8_k1_s1(data=test_data, full_score=full_score, softmax=softmax)
     else:
         results = model.predict_absa_dem8_k1_sn(data=test_data, full_score=full_score)
     logger.info(f"收到的数据是:{test_data}")

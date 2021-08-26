@@ -76,7 +76,7 @@ def dopredict_absa_dem8(test_data, host="127.0.0.1:3326"):
     :return:
     """
     url = f"http://{host}/api/absa_dem8_predict"
-    data = {'data': test_data}
+    data = {'data': test_data, 'search_first':True, 'softmax':False,'full_score':True}
     headers = {'content-type': 'application/json'}
     r = requests.post(url, headers=headers, data=json.dumps(data),  timeout=360)
     print(r.json())
@@ -125,5 +125,5 @@ if __name__ == '__main__':
     # 句子情感
     # sentence_data = ['持妆不能输雅诗兰黛上妆即定妆雅诗兰黛DW粉底是我的心头好持妆遮瑕磨皮粉底液测评', '活动有赠品比较划算，之前买过快用完了，一支可以分两次使用，早上抗氧化必备VC']
     # dopredict_absa_sentence(host=host, test_data=sentence_data)
-    # dopredict_absa_dem8(test_data=dem8_data,host=host)
+    dopredict_absa_dem8(test_data=dem8_data,host=host)
     # dopredict_brand(test_data=brand_data,host=host)

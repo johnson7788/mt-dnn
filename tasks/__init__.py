@@ -161,8 +161,20 @@ class ClassificationTask(MTDNNTask):
         return torch.FloatTensor(softlabels)
 
     @staticmethod
-    def test_predict(score, full_score=False):
-        score = F.softmax(score, dim=1)
+    def test_predict(score, full_score=False, softmax=True):
+        """
+
+        :param score: mtdnn预测的logits值
+        :type score:
+        :param full_score: 是否返回类别的所有score
+        :type full_score: bool
+        :param softmax: 是否使用logits值作为score，即，进行softmax还是不进行
+        :type softmax: bool
+        :return:
+        :rtype:
+        """
+        if softmax:
+            score = F.softmax(score, dim=1)
         score = score.data.cpu()
         np_score = score.numpy()
         predict = np.argmax(np_score, axis=1).tolist()
