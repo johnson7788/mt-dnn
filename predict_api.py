@@ -1072,6 +1072,36 @@ class TorchMTDNNModel(object):
         result = list(zip(predict_labels,scores))
         # 开始索引的位置
         return result
+    def predict_purchase_single(self, data):
+        convert_data = []
+        #变成[content, title, keyword]的格式
+        aspect_list = data['aspect_list']
+        content = data['text']
+        for keyword in aspect_list:
+            one_data = [content, '', keyword]
+            convert_data.append(one_data)
+        # 预测
+        result = self.predict_batch(task_name='purchase', data=convert_data)
+        # 结果转换，返回字典格式
+        final_res = {}
+        for keyword, res in zip(aspect_list, result):
+            final_res[keyword] = [res]
+        return final_res
+    def predict_purchase_batch(self, data):
+        convert_data = []
+        #变成[content, title, keyword]的格式
+        aspect_list = data['aspect_list']
+        content = data['text']
+        for keyword in aspect_list:
+            one_data = [content, '', keyword]
+            convert_data.append(one_data)
+        # 预测
+        result = self.predict_batch(task_name='purchase', data=convert_data)
+        # 结果转换，返回字典格式
+        final_res = {}
+        for keyword, res in zip(aspect_list, result):
+            final_res[keyword] = [res]
+        return final_res
 
 def verify_data(data, task):
     """
@@ -1128,7 +1158,7 @@ def verify_data(data, task):
             pos_text = text[attribute_pos_start:attribute_pos_end]
             if pos_text != attribute_name:
                 return f"第{idx}条的attribute name项数据对应的pos位置在原文中的位置不匹配,应该是{attribute_name},但是原文是{pos_text}"
-    if task == "purchase":
+    elif task == "purchase":
         #校验购买意向， 数据格式应该是类似
         # [[text,title,keyword],...]
         for idx, d in enumerate(data):
@@ -1142,7 +1172,35 @@ def verify_data(data, task):
                 print(f"第{idx}条数据传入的数据的关键字可能是不在文本或标题中，变成小写后重试")
                 if keyword.lower() not in content.lower():
                     return f"第{idx}条数据传入的数据的关键字不在文本和标题中，请检查"
-    if task == 'dem8_predict':
+    elif task == "purchase_single":
+        #校验购买意向， 数据格式应该是类似
+        #         data = {
+        #             "aspect_list" : aspect_list,
+        #             "text": text,
+        #             "channel": channel   #不是必须，没啥用
+        #         }
+        if not isinstance(data, dict):
+            return "传入的数据不是字典格式，请检查"
+        if not data.get('aspect_list'):
+            return "传入的数据字典中没有aspect_list字段"
+        if not data.get('text'):
+            return "传入的数据字典中没有text字段"
+    elif task == "purchase_batch":
+        #校验购买意向， 数据格式应该是类似
+        #   [{'aspect_list':xx, 'content':xxx, 'title':xxx},...]
+        if not isinstance(data, list):
+            return "传入的数据不是列表格式，请检查"
+        for one in data:
+            if not isinstance(one, dict):
+                return "传入的单条数据不是字典格式，请检查"
+            if not one.get('aspect_list'):
+                return "传入的数据字典中没有aspect_list字段"
+            if not one.get('text'):
+                return "传入的数据字典中没有text字段"
+            aspect_list = one.get('aspect_list')
+            if not isinstance(aspect_list, list):
+                return "传入的数据aspect_list不是列表格式，请检查"
+    elif task == 'dem8_predict':
         if len(data[0]) == 3:
             #数据是(content,aspect,属性)
             pass
@@ -1266,6 +1324,53 @@ def purchase_predict():
     if verify_msg is not None:
         return jsonify(verify_msg), 210
     results = model.predict_batch(task_name='purchase', data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/purchase_predict_single", methods=['POST'])
+def purchase_predict_single():
+    """
+    购买意向分类， 用于单条数据，供opinion项目调用
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        接受数据是 [(content,title, aspect),...,]
+        或者：
+        test_data: 需要预测的数据，是一个文字列表, [(content,title, aspect,start_idx, end_idx),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspect),...,]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    logger.info(f"要进行的任务是购买意向判断")
+    verify_msg = verify_data(test_data, task='purchase_single')
+    if verify_msg is not None:
+        return jsonify(verify_msg), 210
+    results = model.predict_purchase_single(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/purchase_predict_batch", methods=['POST'])
+def purchase_predict_batch():
+    """
+    购买意向分类， 主要是opnition的excel的接口进行调用
+    例如关键字前后的25个字作为sentenceA，aspect关键字作为sentenceB，输入模型
+    Args:
+        接受数据是 [{'aspect_list':xx, 'content':xxx, 'title':xxx},...]
+        或者：
+        test_data: 需要预测的数据，是一个文字列表, [(content,title, aspect,start_idx, end_idx),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspect),...,]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    # 是否只返回预测结果的格式， 返回一个列表，否则返回一个代score的列表
+    logger.info(f"要进行的任务是购买意向判断")
+    verify_msg = verify_data(test_data, task='purchase_batch')
+    if verify_msg is not None:
+        return jsonify(verify_msg), 210
+    results = model.predict_purchase_batch(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
