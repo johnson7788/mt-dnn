@@ -1089,18 +1089,28 @@ class TorchMTDNNModel(object):
         return final_res
     def predict_purchase_batch(self, data):
         convert_data = []
-        #变成[content, title, keyword]的格式
-        aspect_list = data['aspect_list']
-        content = data['text']
-        for keyword in aspect_list:
-            one_data = [content, '', keyword]
-            convert_data.append(one_data)
+        # 计数下每条数据中的aspect的个数
+        aspect_count = [0] * len(data)
+        for idx, one in enumerate(data):
+            # 由于data中的aspect_list 有多个，需要进行拆分
+            #变成[content, title, keyword]的格式
+            aspect_list = one['aspect_list']
+            content = one['content']
+            title = one.get('title', '')
+            for keyword in aspect_list:
+                aspect_count[idx] += 1
+                one_data = [content, title, keyword]
+                convert_data.append(one_data)
         # 预测
         result = self.predict_batch(task_name='purchase', data=convert_data)
         # 结果转换，返回字典格式
-        final_res = {}
-        for keyword, res in zip(aspect_list, result):
-            final_res[keyword] = [res]
+        final_res = []
+        # 索引result的结果
+        start_idx = 0
+        for cnt in aspect_count:
+            end_idx = start_idx + cnt
+            every_result = result[start_idx:end_idx]
+            final_res.append(every_result)
         return final_res
 
 def verify_data(data, task):
@@ -1190,16 +1200,18 @@ def verify_data(data, task):
         #   [{'aspect_list':xx, 'content':xxx, 'title':xxx},...]
         if not isinstance(data, list):
             return "传入的数据不是列表格式，请检查"
-        for one in data:
+        for idx, one in enumerate(data):
             if not isinstance(one, dict):
-                return "传入的单条数据不是字典格式，请检查"
+                return "传入的单条的第{idx}条数据不是字典格式，请检查"
             if not one.get('aspect_list'):
-                return "传入的数据字典中没有aspect_list字段"
-            if not one.get('text'):
-                return "传入的数据字典中没有text字段"
+                return "传入的的第{idx}条数据字典中没有aspect_list字段"
+            if not one.get('content'):
+                return f"传入的数据的第{idx}条字典中没有content字段"
             aspect_list = one.get('aspect_list')
             if not isinstance(aspect_list, list):
-                return "传入的数据aspect_list不是列表格式，请检查"
+                return "传入的数据的第{idx}条aspect_list不是列表格式，请检查"
+            if aspect_list == []:
+                return "传入的数据的第{idx}条aspect_list是空的，请检查"
     elif task == 'dem8_predict':
         if len(data[0]) == 3:
             #数据是(content,aspect,属性)
