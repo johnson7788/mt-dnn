@@ -244,7 +244,7 @@ def save_source_data(task_name="all"):
     if task_name == "dem8" or task_name == "all":
         dem8_data = get_demision8(split=False,
                                  dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
-                                               '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify'],withmd5=True)
+                                               '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
         pickle.dump(dem8_data, open(dem8_source_file, "wb"))
     if task_name == "purchase" or task_name == "all":
         purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True)
