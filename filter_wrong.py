@@ -30,7 +30,8 @@ def got_args():
     #分析badcase的参数
     parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
     parser.add_argument("-p","--analysis_path", type=str, default="wrong_sample/0818", help="分析保存预测错误的样本的文件夹，pkl格式")
-    parser.add_argument("-s","--analysis_tasks", type=str, default="accuracy,samplenum,badnum,totalbad,wrongnum,export,golden_class_num,class_wrong_num", help="分析保存预测错误的样本的文件夹，pkl格式")
+    parser.add_argument("-s","--analysis_tasks", type=str, default="all,accuracy,samplenum,badnum,totalbad,wrongnum,export,golden_class_num,class_wrong_num", help="分析保存预测错误的样本的文件夹，pkl格式")
+    parser.add_argument("-pd","--plot_save_dir", type=str, default="./plots", help="保存绘图结果到某个目录")
 
     args = parser.parse_args()
     return args
@@ -71,7 +72,7 @@ def train_and_filter(seed, task ,wrong_path):
         train_options_list = {
             'data_dir': "--data_dir data_my/canonical_data/bert-base-chinese",  # 数据tokenize后的路径
             'init_checkpoint': "--init_checkpoint mt_dnn_models/bert_model_base_chinese.pt",  # base模型
-            "batch_size": "--batch_size 32",
+            "batch_size": "--batch_size 16",
             "task_def": "--task_def experiments/myexample/my_task_def.yml",
             'output_dir': f"--output_dir {model_output_dir}",
             'log_file': f"--log_file {model_output_dir}/log.log ",
@@ -83,6 +84,7 @@ def train_and_filter(seed, task ,wrong_path):
             'grad_clipping': "--grad_clipping 0 ",
             'global_grad_clipping': "--global_grad_clipping 1 ",
             'learning_rate': "--learning_rate 5e-5",
+            'fp16': "--fp16",
         }
         train_options = " ".join(train_options_list.values())
         command = f"/home/wac/johnson/anaconda3/envs/py38/bin/python train.py {train_options}"
@@ -156,29 +158,30 @@ def do_analysis(analysis_path, analysis_tasks):
             sd_res = json.load(f)
             # 预处理下sd_res，为了以后的绘图更方便，主要统计下预测错误的样本，bad_case的基本信息
         seeds_result.append(sd_res)
-    if "accuracy" in analysis_tasks:
+    if "accuracy" in analysis_tasks or 'all' in analysis_tasks:
         # 准确率的绘制
         analysis_acc(seeds_result)
     #样本训练集，开发集，测试集数量绘制
-    if "samplenum" in analysis_tasks:
+    if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
         analysis_sample_num(seeds_result)
-    if "badnum" in analysis_tasks:
+    if "badnum" in analysis_tasks or 'all' in analysis_tasks:
         # 只画出每次seed的错误的样本数量
         analysis_bad_sample_num(seeds_result)
-    if "totalbad" in analysis_tasks:
+    if "totalbad" in analysis_tasks or 'all' in analysis_tasks:
         # 分析总的错误的样本，重复出错的和只出错一次的
         total_bad_sample_num(seeds_result)
-    if "wrongnum" in analysis_tasks:
+    if "wrongnum" in analysis_tasks or 'all' in analysis_tasks:
         # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
         total_bad_sample_bar(seeds_result)
-    if "export" in analysis_tasks:
+    if "export" in analysis_tasks or 'all' in analysis_tasks:
         export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result)
     # 分析样本中每个类别的真实数量
-    if "golden_class_num" in analysis_tasks:
+    if "golden_class_num" in analysis_tasks or 'all' in analysis_tasks:
         analysis_every_class_num(seeds_result)
-    if "class_wrong_num" in analysis_tasks:
+    if "class_wrong_num" in analysis_tasks or 'all' in analysis_tasks:
         # 每个任务的每个类别的正确率分析, 每个label的准确率
         analysis_every_class_wrong(seeds_result)
+    print(f"保存绘图结果到: {plot_save_dir}")
 def analysis_every_class_num(seeds_result):
     def collect_value(sd_res,task):
         # 所有的标签，一共有多少个标签
@@ -345,6 +348,7 @@ def simple_bar_plot(x, y, title, xname, yname):
     ax.set_title(title)
     plt.xlabel(xname)
     plt.ylabel(yname)
+    plt.savefig(os.path.join(plot_save_dir, f"{title}.png"), dpi=300)
     plt.show()
 def total_bad_sample_bar(seeds_result):
     """
@@ -613,10 +617,12 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_
     ax.bar_label(rects3, padding=30,color='green')
     # 紧凑显示，显示的图更大一些
     fig.tight_layout()
+    plt.savefig(os.path.join(plot_save_dir, f"{title}.png"), dpi=300)
     plt.show()
 
 if __name__ == '__main__':
     args = got_args()
+    plot_save_dir = args.plot_save_dir
     if args.do_train_filter:
         train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
     else:

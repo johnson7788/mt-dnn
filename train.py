@@ -62,7 +62,7 @@ def model_config(parser):
     parser.add_argument('--bin_size', type=int, default=64)
     parser.add_argument('--bin_grow_ratio', type=int, default=0.5)
 
-    # dist training
+    # 分布式 training
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--world_size", type=int, default=1, help="For distributed training: world size")
     parser.add_argument("--master_addr", type=str, default="localhost")
