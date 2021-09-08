@@ -21,7 +21,7 @@ def main(args):
     data_dir = os.path.abspath(data_dir)
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
-
+    #源文件位置
     train_path = os.path.join(data_dir, 'train.txt')
     dev_path = os.path.join(data_dir, 'valid.txt')
     test_path = os.path.join(data_dir, 'test.txt')

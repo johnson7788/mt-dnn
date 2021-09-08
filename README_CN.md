@@ -335,11 +335,13 @@ python train.py --grad_accumulation_step 2
 ### 序列标注任务 
 1. 预处理数据 </br>
    a) 将ner数据下载到data/ner，包括：{train/valid/test}.txt </br>
-   b) 将ner数据转换为规范格式：```> python experiments\ner\prepro.py --data data\ner --output_dir data\canonical_data``` </br>
-   c) 预处理规范数据到MT-DNN格式：```> python prepro_std.py --do_lower_case --root_dir data\canonical_data --task_def experiments\ner\ner_task_def.yml --model bert-base-uncased``` </br>
+   b) 将ner数据转换为规范格式：```> python experiments/ner/prepro.py --data_dir  data/ner  --output_dir  data/canonical_data``` </br>
+   c) 预处理规范数据到MT-DNN格式：```> python prepro_std.py --do_lower_case --root_dir data/canonical_data --task_def experiments/ner/ner_task_def.yml --model bert-base-uncased``` </br>
 
 2. 训练 </br>
-   ```> python train.py --data_dir <data-path> --init_checkpoint <bert/ner-model> --train_dataset ner --test_dataset ner --task_def experiments\ner\ner_task_def.yml```
+    例如只训练任务名字为ner的任务，当然，还可以同时或分别训练chunk和pos任务
+    python train.py --init_checkpoint mt_dnn_models/bert_model_base_uncased.pt --task_def experiments/ner/ner_task_def.yml --data_dir data/canonical_data/bert-base-uncased --train_datasets ner --test_datasets ner
+   ```> python train.py --data_dir <data-path> --init_checkpoint <bert/ner-model> --train_dataset ner --test_dataset ner --task_def experiments/ner/ner_task_def.yml```
 
 ### SMART
 在微调阶段的对抗训练：:

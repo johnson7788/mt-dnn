@@ -127,7 +127,7 @@ def train_config(parser):
     parser.add_argument('--output_dir', default='checkpoint')
     parser.add_argument('--seed', type=int, default=2018,
                         help='random seed for data shuffling, embedding init, etc.')
-    parser.add_argument('--grad_accumulation_step', type=int, default=1)
+    parser.add_argument('--grad_accumulation_step', type=int, default=1,help='梯度累加')
 
     #fp 16
     parser.add_argument('--fp16', action='store_true',

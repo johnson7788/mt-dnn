@@ -347,7 +347,7 @@ def main(args):
                     sys.exit(1)
                 rows = load_data(file_path, task_def)
                 dump_path = os.path.join(mt_dnn_root, "%s_%s.json" % (task, split_name))
-                logger.info(dump_path)
+                logger.info(f"保存文件到{dump_path}")
                 build_data(
                     rows,
                     dump_path,
