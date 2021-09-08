@@ -65,10 +65,21 @@ def do_predict(task, task_def, task_id, prep_input, with_label, score, max_seq_l
     config = state_dict['config']
     config["cuda"] = cuda
     #每个任务对应一个配置, 必须给定，否则任务不加载
-    task_def_dem8 = task_defs.get_task_def('dem8')
-    task_def_absa = task_defs.get_task_def('absa')
-    task_def_purchase = task_defs.get_task_def('purchase')
-    task_def_list = [task_def_absa,task_def_dem8,task_def_purchase]
+
+    if task == 'ner':
+        # 如果训练任务仅仅是单个ner，那么对应的task_id是0
+        task_def_conf = task_defs.get_task_def('ner')
+        task_def_list = [task_def_conf]
+    elif task =='dem8':
+        #如果是dem8任务，那么是多任务中的一个，我们设定的task_id是1
+        task_def_dem8 = task_defs.get_task_def('dem8')
+        task_def_absa = task_defs.get_task_def('absa')
+        task_def_purchase = task_defs.get_task_def('purchase')
+        brand_def_purchase = task_defs.get_task_def('brand')
+        task_def_list = [task_def_absa,task_def_dem8,task_def_purchase, brand_def_purchase]
+    else:
+        task_def_conf = task_defs.get_task_def(task)
+        task_def_list = [task_def_conf]
     #加载到配置中
     config['task_def_list'] = task_def_list
     ## temp fix
@@ -85,21 +96,31 @@ def do_predict(task, task_def, task_id, prep_input, with_label, score, max_seq_l
     collater = Collater(is_train=False, encoder_type=encoder_type)
     test_data = DataLoader(test_data_set, batch_size=batch_size_eval, collate_fn=collater.collate_fn, pin_memory=cuda)
 
-
+    # 把预测的id和gold的id变成标签名字
+    id2label = task_def_list[task_id].label_vocab.ind2tok
+    task_type = task_def_list[task_id].task_type
+    if task_type == 5:
+        #说明是序列标注的任务
+        label_mapper = id2label
+    else:
+        label_mapper = None
     with torch.no_grad():
         # test_metrics eg: acc结果，准确率结果
         # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id
         test_metrics, test_predictions, scores, golds, test_ids = eval_model(model=model, data=test_data,
                                                                              metric_meta=metric_meta,
-                                                                             device=device, with_label=with_label)
+                                                                             device=device, with_label=with_label,label_mapper=label_mapper)
         results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
         dump(path=score, data=results)
         if with_label:
             print(f"测试的文件是{prep_input}, 测试的数据总量是{len(test_ids)}, 测试的结果是{test_metrics}")
-    # 把预测的id和gold的id变成标签名字
-    id2label = task_def_list[task_id].label_vocab.ind2tok
-    predict_labels = [id2label[p] for p in test_predictions]
-    gold_labels = [id2label[p] for p in golds]
+    if task_type == 5:
+        # 预测结果是nest list格式
+        predict_labels = [id2label[p] for one in test_predictions for p in one]
+        gold_labels = [id2label[p] for one in golds for p in one]
+    else:
+        predict_labels = [id2label[p] for p in test_predictions]
+        gold_labels = [id2label[p] for p in golds]
     if do_collection:
         # 预测数据的位置 prep_input 对应的源文件位置, json是处理过后的数据，tsv是源数据
         json_file = os.path.basename(prep_input)

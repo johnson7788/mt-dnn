@@ -340,8 +340,26 @@ python train.py --grad_accumulation_step 2
 
 2. 训练 </br>
     例如只训练任务名字为ner的任务，当然，还可以同时或分别训练chunk和pos任务
-    python train.py --init_checkpoint mt_dnn_models/bert_model_base_uncased.pt --task_def experiments/ner/ner_task_def.yml --data_dir data/canonical_data/bert-base-uncased --train_datasets ner --test_datasets ner
+    ```
+        python train.py --init_checkpoint mt_dnn_models/bert_model_base_uncased.pt --task_def experiments/ner/ner_task_def.yml --data_dir data/canonical_data/bert-base-uncased --train_datasets ner --test_datasets ner
+    ```
+    
    ```> python train.py --data_dir <data-path> --init_checkpoint <bert/ner-model> --train_dataset ner --test_dataset ner --task_def experiments/ner/ner_task_def.yml```
+训练5个epoch结果:
+```angular2html
+09/08/2021 02:36:58 开始评估
+09/08/2021 02:37:04 任务是 ner -- epoch 4 -- Dev SeqEval:               
+                precision   recall  f1-score   support
+
+         LOC     0.9541    0.9608    0.9574      1837
+        MISC     0.8249    0.8633    0.8437       922
+         ORG     0.8882    0.9128    0.9003      1341
+         PER     0.9767    0.9767    0.9767      1842
+           _     0.0000    0.0000    0.0000         0
+   micro avg     0.9244    0.9398    0.9320      5942
+   macro avg     0.7288    0.7427    0.7356      5942
+weighted avg     0.9262    0.9398    0.9328      5942
+```
 
 ### SMART
 在微调阶段的对抗训练：:
