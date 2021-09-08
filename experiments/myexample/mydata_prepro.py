@@ -113,7 +113,7 @@ def do_truncate_data(data, left_max_seq_len=60, aspect_max_seq_len=10, right_max
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
 
-def truncate_relation(data, max_seq_len=450):
+def truncate_relation(data, max_seq_len=150):
     """
     只对text的长度进行截取，根据
     :param data: 源数据

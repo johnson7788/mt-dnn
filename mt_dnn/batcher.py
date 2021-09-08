@@ -433,8 +433,9 @@ class Collater:
         # DataLoader will convert any unknown type objects to dict, 
         # the conversion logic also convert Enum to repr(Enum), which is a string and undesirable
         # If we convert object to dict in advance, DataLoader will do nothing
-        # batch_info['task_def'] = task_def.__dict__
-        batch_info['task_def'] = task_def
+        batch_info['task_def'] = task_def.__dict__
+        # 把任务名字加进去，方便打印日志, 原来的task_def
+        batch_info['original_task_def'] = task_def
         batch_info['pairwise_size'] = self.pairwise_size  # need for ranking task
 
         # add label

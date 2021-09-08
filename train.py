@@ -92,7 +92,7 @@ def data_config(parser):
 def train_config(parser):
     parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
                         help='是否使用GPU')
-    parser.add_argument('--log_per_updates', type=int, default=500)
+    parser.add_argument('--log_per_updates', type=int, default=500,help="多少个step就打印一次日志输出")
     parser.add_argument('--save_per_updates', type=int, default=10000,help='结合save_per_updates_on一起使用，表示每多少step，进行模型评估和保存')
     parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁,每步都评估 ')
     parser.add_argument('--epochs', type=int, default=5)
@@ -448,11 +448,11 @@ def main():
             # 使用Collater的patch_data函数对一个批次的数据进一步处理，例如放到GPU上
             batch_meta, batch_data = Collater.patch_data(device, batch_meta, batch_data)
             task_id = batch_meta['task_id']
-            task_name = batch_meta['task_def']['name']
+            task_name = batch_meta['original_task_def']['name']
             #模型训练
             model.update(batch_meta, batch_data)
             # 打印一些信息
-            if (model.updates) % (args.log_per_updates) == 0 or model.updates == 1:
+            if model.updates< 20 or (model.updates) % (args.log_per_updates) == 0 or model.updates == 1:
                 ramaining_time = str((datetime.now() - start) / (i + 1) * (len(multi_task_train_data) - i - 1)).split('.')[0]
                 if args.adv_train and args.debug:
                     debug_info = ' adv loss[%.5f] emb val[%.8f] eff_perturb[%.8f] ' % (

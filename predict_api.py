@@ -921,7 +921,7 @@ class TorchMTDNNModel(object):
                         added_res.append(empty_res)
                         final_result.append(added_res)
         return final_result
-    def truncate_relation(self, data, max_seq_len=450):
+    def truncate_relation(self, data, max_seq_len=150):
         """
         只对text的长度进行截取，根据
         :param data: 源数据
