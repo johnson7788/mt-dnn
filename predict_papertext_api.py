@@ -266,7 +266,7 @@ class SinglePredictDataset(Dataset):
         elif data_format == DataFormat.PremiseAndMultiHypothesis:
             feature_datas = build_data_premise_and_multi_hypo(
                 data, max_seq_len, tokenizer)
-        elif data_format == DataFormat.Seqence:
+        elif data_format == DataFormat.Sequence:
             feature_datas = build_data_sequence(data, max_seq_len, tokenizer, lab_dict)
         elif data_format == DataFormat.MRC:
             feature_datas = build_data_mrc(data, max_seq_len, tokenizer)

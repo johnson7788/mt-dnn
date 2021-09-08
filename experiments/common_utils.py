@@ -38,7 +38,7 @@ def dump_rows(rows, out_path, data_format):
                         import pdb; pdb.set_trace()
                 hypothesis = "\t".join(hypothesis)
                 out_f.write("%s\t%s\t%s\t%s\t%s\n" % (row["uid"], row["ruid"], row["label"], row["premise"], hypothesis))
-            elif data_format == DataFormat.Seqence:
+            elif data_format == DataFormat.Sequence:
                 for col in ["uid", "label", "premise"]:
                     if "\t" in str(row[col]):
                         import pdb; pdb.set_trace()

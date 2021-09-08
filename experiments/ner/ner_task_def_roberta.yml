@@ -1,5 +1,5 @@
 ner:
-  data_format: Seqence
+  data_format: Sequence
   encoder_type: ROBERTA
   dropout_p: 0.1
   enable_san: False
@@ -26,7 +26,7 @@ ner:
   - test
   task_type: SeqenceLabeling
 pos:
-  data_format: Seqence
+  data_format: Sequence
   encoder_type: ROBERTA
   dropout_p: 0.1
   enable_san: False
@@ -90,7 +90,7 @@ pos:
   - test
   task_type: SeqenceLabeling
 chunk:
-  data_format: Seqence
+  data_format: Sequence
   encoder_type: ROBERTA
   dropout_p: 0.1
   enable_san: False

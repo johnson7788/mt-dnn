@@ -14,7 +14,7 @@ class DataFormat(IntEnum):
     PremiseAndOneHypothesis = 2
     PremiseAndMultiHypothesis = 3
     MRC = 4
-    Seqence = 5
+    Sequence = 5
     MLM = 6
     RELATION = 7
 

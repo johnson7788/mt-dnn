@@ -269,7 +269,7 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
     elif data_format == DataFormat.PremiseAndMultiHypothesis:
         build_data_premise_and_multi_hypo(
             data, dump_path, max_seq_len, tokenizer)
-    elif data_format == DataFormat.Seqence:
+    elif data_format == DataFormat.Sequence:
         build_data_sequence(data, dump_path, max_seq_len, tokenizer, lab_dict)
     elif data_format == DataFormat.MRC:
         build_data_mrc(data, dump_path, max_seq_len, tokenizer)

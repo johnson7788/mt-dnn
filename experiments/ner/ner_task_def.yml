@@ -1,5 +1,5 @@
 ner:
-  data_format: Seqence
+  data_format: Sequence
   dropout_p: 0.3
   enable_san: False
   labels:
@@ -25,7 +25,7 @@ ner:
   - test
   task_type: SeqenceLabeling
 pos:
-  data_format: Seqence
+  data_format: Sequence
   dropout_p: 0.1
   enable_san: False
   labels:
@@ -88,7 +88,7 @@ pos:
   - test
   task_type: SeqenceLabeling
 chunk:
-  data_format: Seqence
+  data_format: Sequence
   dropout_p: 0.1
   enable_san: False
   labels:

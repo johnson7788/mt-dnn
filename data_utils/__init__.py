@@ -27,7 +27,7 @@ def load_data(file_path, task_def):
             assert len(fields) > 5
             row = {"uid": fields[0], "ruid": fields[1].split(","), "label": fields[2], "premise": fields[3],
                    "hypothesis": fields[4:]}
-        elif data_format == DataFormat.Seqence:
+        elif data_format == DataFormat.Sequence:
             row = {"uid": fields[0], "label": eval(fields[1]),  "premise": eval(fields[2])}
 
         elif data_format == DataFormat.MRC:
