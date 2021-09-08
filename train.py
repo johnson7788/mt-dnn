@@ -294,6 +294,8 @@ def main():
         tasks[prefix] = task_id
         #训练的基本数据信息，例如用哪个损失，任务类型，任务标签等
         task_def = task_defs.get_task_def(prefix)
+        #把任务的名字也加进去
+        task_def['name'] = prefix
         task_def_list.append(task_def)
         assert len(task_def.label_vocab.ind2tok) == task_def.n_class, "配置中的类别数量和标签数量不相等，请检查"
         train_path = os.path.join(data_dir, '{}_train.json'.format(dataset))
@@ -446,6 +448,7 @@ def main():
             # 使用Collater的patch_data函数对一个批次的数据进一步处理，例如放到GPU上
             batch_meta, batch_data = Collater.patch_data(device, batch_meta, batch_data)
             task_id = batch_meta['task_id']
+            task_name = batch_meta['task_def']['name']
             #模型训练
             model.update(batch_meta, batch_data)
             # 打印一些信息
@@ -459,7 +462,7 @@ def main():
                     )
                 else:
                     debug_info = ' '
-                print_message(logger, '任务[{0:2}]，训练了第[{1:6}]步， 训练损失为：[{2:.5f}]{3}，预计还需时间：[{4}]'.format(task_id,
+                print_message(logger, '任务ID:{0:1}，任务:{1}，训练了第[{2:6}]步， 训练损失为：[{3:.5f}]{4}，预计还需时间：[{5}]'.format(task_id,task_name,
                                                                                                     model.updates,
                                                                                                     model.train_loss.avg,
                                                                                                     debug_info,
