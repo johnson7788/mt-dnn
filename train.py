@@ -44,7 +44,7 @@ def model_config(parser):
     parser.add_argument('--mtl_opt', type=int, default=0)
     parser.add_argument('--ratio', type=float, default=0)
     parser.add_argument('--mix_opt', type=int, default=0)
-    parser.add_argument('--max_seq_len', type=int, default=512)
+    parser.add_argument('--max_seq_len', type=int, default=512, help='最大序列长度')
     parser.add_argument('--init_ratio', type=float, default=1)
     parser.add_argument('--encoder_type', type=int, default=EncoderModelType.BERT)
     parser.add_argument('--num_hidden_layers', type=int, default=-1, help='-1表示不修改模型的隐藏层参数，使用默认值，否则修改')
@@ -57,9 +57,9 @@ def model_config(parser):
     parser.add_argument('--max_predictions_per_seq', type=int, default=128)
 
     # bin samples
-    parser.add_argument('--bin_on', action='store_true')
-    parser.add_argument('--bin_size', type=int, default=64)
-    parser.add_argument('--bin_grow_ratio', type=int, default=0.5)
+    parser.add_argument('--bin_on', action='store_true', help='根据最大序列长度和文本长度，划分不同的bin,提高训练稳定性和效率')
+    parser.add_argument('--bin_size', type=int, default=64, help='每64个长度，即64个字符的长度放到一个bin里面，例如最大序列长度为512，那么bins会被分成64, 128, 192, 256, 320, 384, 448, 512')
+    parser.add_argument('--bin_grow_ratio', type=int, default=0.5, help='后面的bin的长度会变短，bin的长度根据batch_size和bin的个数和这个ratio有关')
 
     # 分布式 training
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")

@@ -152,10 +152,26 @@ class MultiTaskBatchSampler(BatchSampler):
 
     @staticmethod
     def _get_shuffled_index_batches_bin(dataset, batch_size, bin_size, bin_grow_ratio):
+        """
+        长度不同的数据放在不同的bin里面，加速训练
+        :param dataset:
+        :type dataset:
+        :param batch_size:
+        :type batch_size:
+        :param bin_size:
+        :type bin_size:
+        :param bin_grow_ratio:
+        :type bin_grow_ratio:
+        :return:
+        :rtype:
+        """
+        #最大序列长度, eg: 512
         maxlen = dataset.maxlen
+        # eg: [64, 128, 192, 256, 320, 384, 448, 512]
         bins = create_bins(bin_size, maxlen)
+        #创建几个空的nest list, eg: [[], [], [], [], [], [], [], []]
         data = [[] for i in range(0, len(bins))]
-        
+        # 迭代
         for idx, sample in enumerate(dataset):
             bin_idx = search_bin(bins, len(sample['sample']['token_id']))
             data[bin_idx].append(idx)
