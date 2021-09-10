@@ -49,7 +49,7 @@ def model_config(parser):
     parser.add_argument('--encoder_type', type=int, default=EncoderModelType.BERT)
     parser.add_argument('--num_hidden_layers', type=int, default=-1, help='-1表示不修改模型的隐藏层参数，使用默认值，否则修改')
 
-    # 预训练bert模型
+    # 训练bert的MaskLM模型，训练一个预训练模型,参数暂时没传入SingleTaskDataset函数中
     parser.add_argument('--bert_model_type', type=str, default='bert-base-uncased',help='使用的预训练模型')
     parser.add_argument('--do_lower_case', action='store_true',help='是否小写')
     parser.add_argument('--masked_lm_prob', type=float, default=0.15)
