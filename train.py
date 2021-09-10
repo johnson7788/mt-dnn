@@ -25,8 +25,7 @@ from mt_dnn.model import MTDNNModel
 def model_config(parser):
     parser.add_argument('--update_bert_opt', default=0, type=int, help='是否更新固定预训练的bert模型参数，大于0表示固定')
     parser.add_argument('--multi_gpu_on', action='store_true',help='默认False，是否使用多GPU')
-    parser.add_argument('--mem_cum_type', type=str, default='simple',
-                        help='bilinear/simple/default')
+    parser.add_argument('--mem_cum_type', type=str, default='simple', help='bilinear/simple/default')
     parser.add_argument('--answer_num_turn', type=int, default=5,help='论文中的超参数K，K步推理')
     parser.add_argument('--answer_mem_drop_p', type=float, default=0.1)
     parser.add_argument('--answer_att_hidden_size', type=int, default=128)
@@ -50,7 +49,7 @@ def model_config(parser):
     parser.add_argument('--encoder_type', type=int, default=EncoderModelType.BERT)
     parser.add_argument('--num_hidden_layers', type=int, default=-1, help='-1表示不修改模型的隐藏层参数，使用默认值，否则修改')
 
-    # BERT pre-training
+    # 预训练bert模型
     parser.add_argument('--bert_model_type', type=str, default='bert-base-uncased',help='使用的预训练模型')
     parser.add_argument('--do_lower_case', action='store_true',help='是否小写')
     parser.add_argument('--masked_lm_prob', type=float, default=0.15)
@@ -72,11 +71,11 @@ def model_config(parser):
 
 
 def data_config(parser):
-    parser.add_argument('--log_file', default='mt-dnn-train.log', help='path for log file.')
+    parser.add_argument('--log_file', default='mt-dnn-train.log', help='保存训练的日志文件的位置')
     parser.add_argument('--tensorboard', action='store_true')
     parser.add_argument('--tensorboard_logdir', default='tensorboard_logdir')
     parser.add_argument("--init_checkpoint", default='mt_dnn_models/bert_model_base_uncased.pt', type=str, help='使用哪个模型初始模型参数，请注意，选择正确的中英文模型')
-    parser.add_argument('--data_dir', default='data/canonical_data/bert_uncased_lower',help='tokenize后的数据的地址')
+    parser.add_argument('--data_dir', default='data/canonical_data/bert_uncased_lower',help='tokenize后的数据的存储地址')
     parser.add_argument('--data_sort_on', action='store_true')
     parser.add_argument('--name', default='farmer')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml",help="使用的task任务定义的文件，默认是glue的task进行训练")
@@ -90,19 +89,18 @@ def data_config(parser):
 
 
 def train_config(parser):
-    parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
-                        help='是否使用GPU')
-    parser.add_argument('--log_per_updates', type=int, default=500,help="多少个step就打印一次日志输出")
+    parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),help='是否使用GPU')
+    parser.add_argument('--log_per_updates', type=int, default=500,help="多少个step就打印一次日志输出，默认前20次step都输出日志")
     parser.add_argument('--save_per_updates', type=int, default=10000,help='结合save_per_updates_on一起使用，表示每多少step，进行模型评估和保存')
     parser.add_argument('--save_per_updates_on', action='store_true',help='每一步都保存模型，保存频繁,每步都评估 ')
-    parser.add_argument('--epochs', type=int, default=5)
+    parser.add_argument('--epochs', type=int, default=5,help='训练多少个epoch')
     parser.add_argument('--batch_size', type=int, default=8, help='训练的batch_size')
-    parser.add_argument('--batch_size_eval', type=int, default=8)
+    parser.add_argument('--batch_size_eval', type=int, default=8,help='评估的batch_size')
     parser.add_argument('--optimizer', default='adamax',
                         help='supported optimizer: adamax, sgd, adadelta, adam， 使用的优化器')
-    parser.add_argument('--grad_clipping', type=float, default=0)
-    parser.add_argument('--global_grad_clipping', type=float, default=1.0)
-    parser.add_argument('--weight_decay', type=float, default=0)
+    parser.add_argument('--grad_clipping', type=float, default=0, help='梯度裁剪')
+    parser.add_argument('--global_grad_clipping', type=float, default=1.0, help='全局梯度裁剪')
+    parser.add_argument('--weight_decay', type=float, default=0, help='weight')
     parser.add_argument('--learning_rate', type=float, default=5e-5)
     parser.add_argument('--momentum', type=float, default=0)
     parser.add_argument('--warmup', type=float, default=0.1)
@@ -115,7 +113,7 @@ def train_config(parser):
     parser.add_argument('--bert_dropout_p', type=float, default=0.1)
 
     # loading
-    parser.add_argument("--model_ckpt", default='checkpoints/model_0.pt', type=str, help='继续训练模型时的已存在模型')
+    parser.add_argument("--model_ckpt", default='checkpoints/model_0.pt', type=str, help='继续训练模型时的使用已存在模型')
     parser.add_argument("--resume", action='store_true',help='继续训练模型，结合参数--model_ckpt一起使用')
 
     # scheduler
@@ -125,8 +123,7 @@ def train_config(parser):
     parser.add_argument('--lr_gamma', type=float, default=0.5)
     parser.add_argument('--scheduler_type', type=str, default='ms', help='ms/rop/exp')
     parser.add_argument('--output_dir', default='checkpoint')
-    parser.add_argument('--seed', type=int, default=2018,
-                        help='random seed for data shuffling, embedding init, etc.')
+    parser.add_argument('--seed', type=int, default=2018,help='随机数种子用于数据shuffling, embedding init, etc.')
     parser.add_argument('--grad_accumulation_step', type=int, default=1,help='梯度累加')
 
     #fp 16
@@ -136,17 +133,17 @@ def train_config(parser):
                         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
                              "See details at https://nvidia.github.io/apex/amp.html")
 
-    # adv training
-    parser.add_argument('--adv_train', action='store_true')
+    # ALUM，对抗训练 training
+    parser.add_argument('--adv_train', action='store_true', help='是否启用对抗训练')
     # the current release only includes smart perturbation
     parser.add_argument('--adv_opt', default=0, type=int)
     parser.add_argument('--adv_norm_level', default=0, type=int)
     parser.add_argument('--adv_p_norm', default='inf', type=str)
-    parser.add_argument('--adv_alpha', default=1, type=float)
-    parser.add_argument('--adv_k', default=1, type=int)
-    parser.add_argument('--adv_step_size', default=1e-5, type=float)
-    parser.add_argument('--adv_noise_var', default=1e-5, type=float)
-    parser.add_argument('--adv_epsilon', default=1e-6, type=float)
+    parser.add_argument('--adv_alpha', default=1, type=float, help='控制标准误差和稳健误差之间的权衡，论文公式3，默认是均等的误差权衡, α=10用于预训练，α=1用于微调')
+    parser.add_argument('--adv_k', default=1, type=int,help='K个投影梯度步, 为了在速度和性能之间达到良好的权衡，在所有的实验中都设定K=1， 论文中算法1部分')
+    parser.add_argument('--adv_step_size', default=1e-5, type=float, help='论文算法1中的η，更新扰动的step size')
+    parser.add_argument('--adv_noise_var', default=1e-5, type=float, help='算法1中的σ^2，随机初始化扰动的方差')
+    parser.add_argument('--adv_epsilon', default=1e-6, type=float, help='算法1中的ε，扰动的边界范围')
     parser.add_argument('--encode_mode', action='store_true', help='只把测试数据用模型编码一下，然后保存到checkpoint目录，没啥用')
     parser.add_argument('--debug', action='store_true', help="print debug info")
     return parser

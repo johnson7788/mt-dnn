@@ -361,7 +361,7 @@ python train.py --grad_accumulation_step 2
 weighted avg     0.9262    0.9398    0.9328      5942
 ```
 
-### SMART
+### SMART， 智能添加扰动的对抗训练
 在微调阶段的对抗训练：:
    ```> python train.py --data_dir <data-path> --init_checkpoint <bert/mt-dnn-model> --train_dataset mnli --test_dataset mnli_matched,mnli_mismatched --task_def experiments\glue\glue_task_def.yml --adv_train --adv_opt 1```
 
