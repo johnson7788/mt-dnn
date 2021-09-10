@@ -45,6 +45,7 @@ def model_config(parser):
     parser.add_argument('--mix_opt', type=int, default=0)
     parser.add_argument('--max_seq_len', type=int, default=512)
     parser.add_argument('--init_ratio', type=float, default=1)
+    parser.add_argument('--encoder_type', type=int, default=1, help='1代表bert，参考data_utils/task_def.py')
     return parser
 
 def train_config(parser):
@@ -96,7 +97,7 @@ def convert(args):
     config = BertConfig.from_json_file(bert_config_file)
     opt = vars(args)
     opt.update(config.to_dict())
-    model = SANBertNetwork(opt)
+    model = SANBertNetwork(opt, initial_from_local=True)
     path = os.path.join(tf_checkpoint_path, 'bert_model.ckpt')
     logger.info('即将转换 TensorFlow checkpoint 从文件 {}中'.format(path))
     init_vars = tf.train.list_variables(path)
@@ -183,9 +184,10 @@ def convert(args):
     nstate_dict = model.state_dict()
     params = {'state':nstate_dict, 'config': config.to_dict()}
     torch.save(params, pytorch_dump_path)
+    print(f"完成，保存模型到{pytorch_dump_path}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型')
+    parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型的路径')
     parser.add_argument('--tf_checkpoint_root', type=str, required=True, help='原始的tf的模型checkpoint的位置')
     parser.add_argument('--pytorch_checkpoint_path', type=str, required=True, help='保存模型pt文件到哪个位置')
     parser = model_config(parser)
