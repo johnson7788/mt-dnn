@@ -5,14 +5,11 @@
 我们发布了LM预训练/FineTuning和f-divercence的对抗性训练。
 
 
-Large-scale Adversarial training for LMs: [ALUM code](https://github.com/namisan/mt-dnn/blob/master/alum/README.md). <br/>
-如果你想使用旧版本，请使用以下cmd来克隆代码。<br/>
+对抗学习的代码更新: [ALUM code](https://github.com/namisan/mt-dnn/blob/master/alum/README.md). <br/>
+如果你想使用旧版本，不加对抗学习的代码，请使用以下cmd来克隆代码。<br/>
 ```git clone -b v0.1 https://github.com/namisan/mt-dnn.git ```
 
-
-
 # 用于自然语言理解的多任务深神经网络
-
 这个PyTorch包实现了用于自然语言理解的多任务深度神经网络(MT-DNN)，如图所示。
 
 Xiaodong Liu\*, Pengcheng He\*, Weizhu Chen and Jianfeng Gao<br/>
