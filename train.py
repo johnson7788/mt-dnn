@@ -82,8 +82,7 @@ def data_config(parser):
     parser.add_argument('--train_datasets', default='mnli',help='训练的多个任务的数据集，用逗号,分隔，如果多个数据集存在')
     parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched',help='测试的多个任务的数据集，用逗号,分隔，如果多个数据集存在，根据任务名前缀自动匹配，例如mnli的前半部分mnli_')
     parser.add_argument('--glue_format_on', action='store_true')
-    parser.add_argument('--mkd-opt', type=int, default=0, 
-                        help=">0表示开启知识蒸馏, requires 'softlabel' column in input data")
+    parser.add_argument('--mkd-opt', type=int, default=0, help=">0表示开启知识蒸馏, 输入数据中必须包含'softlabel'列")
     parser.add_argument('--do_padding', action='store_true')
     return parser
 

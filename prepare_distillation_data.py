@@ -4,14 +4,13 @@ from data_utils import load_score_file
 from experiments.exp_def import TaskDefs
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--task_def", type=str, default="experiments/glue/glue_task_def.yml")
-parser.add_argument("--task", type=str)
-parser.add_argument("--add_soft_label", action="store_true",
-                    help="without this option, we replace hard label with soft label")
+parser.add_argument("--task_def", type=str, default="experiments/glue/glue_task_def.yml", help='任务的配置文件')
+parser.add_argument("--task", type=str, help='指定任务的名称')
+parser.add_argument("--add_soft_label", action="store_true", help="使用软标签替换硬标签, 添加软标签的列 softlabel")
 
-parser.add_argument("--std_input", type=str)
-parser.add_argument("--score", type=str)
-parser.add_argument("--std_output", type=str)
+parser.add_argument("--std_input", type=str, help='原始的任务源训练数据文件, 这里只假设二分类任务的蒸馏，所以程序需要优化')
+parser.add_argument("--score", type=str, help='输入文件，普通任务训练后的json格式的score文件，里面有训练出来的probablity')
+parser.add_argument("--std_output", type=str, help='加了soft label之后的训练数据的保存文件')
 
 args = parser.parse_args()
 
