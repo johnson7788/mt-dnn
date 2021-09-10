@@ -32,7 +32,9 @@ class MTDNNModel(object):
         self.device = device
         #初始化一个metric，平均值的metric，用于训练
         self.train_loss = AverageMeter()
+        # 对抗训练的损失
         self.adv_loss = AverageMeter()
+        # 保存embedding的值，没有加noise的embedding的向量
         self.emb_val = AverageMeter()
         self.eff_perturb = AverageMeter()
         self.initial_from_local = True if state_dict else False
@@ -262,6 +264,7 @@ class MTDNNModel(object):
             # 对抗学习的输入
             adv_inputs = [self.mnetwork, logits] + inputs + [task_type, batch_meta.get('pairwise_size', 1)]
             adv_loss, emb_val, eff_perturb = self.adv_teacher.forward(*adv_inputs)
+            # 损失就是2部分损失，根据ALUM论文的公式3，缩放的对抗损失和原始损失
             loss = loss + self.config['adv_alpha'] * adv_loss
         # eg：8
         batch_size = batch_data[batch_meta['token_id']].size(0)

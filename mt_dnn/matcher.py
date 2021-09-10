@@ -122,13 +122,16 @@ class SANBertNetwork(nn.Module):
 
     def forward(self, input_ids, token_type_ids, attention_mask, premise_mask=None, hyp_mask=None, task_id=0, fwd_type=0, embed=None):
         if fwd_type == 2:
+            # 表示使用自己提供的inputs_embeds进行embedding
             assert embed is not None
             last_hidden_state, all_hidden_states = self.encode(None, token_type_ids, attention_mask, embed) 
         elif fwd_type == 1:
             return self.embed_encode(input_ids, token_type_ids, attention_mask)
         else:
             last_hidden_state, all_hidden_states = self.encode(input_ids, token_type_ids, attention_mask)
+        # decoder_opt： 0
         decoder_opt = self.decoder_opt[task_id]
+        # task_type： TaskType.Classification
         task_type = self.task_types[task_id]
         task_obj = tasks.get_task_obj(self.task_def_list[task_id])
         if task_obj is not None:

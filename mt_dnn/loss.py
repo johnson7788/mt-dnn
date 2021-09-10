@@ -149,7 +149,7 @@ class NsKlCriterion(Criterion):
 class SymKlCriterion(Criterion):
     def __init__(self, alpha=1.0, name='KL Div Criterion'):
         """
-        对称的KL损失
+        对称的KL损失， 对抗学习损失
         :param alpha:
         :type alpha:
         :param name:
