@@ -136,9 +136,9 @@ def train_config(parser):
     # ALUM，对抗训练 training
     parser.add_argument('--adv_train', action='store_true', help='是否启用对抗训练')
     # the current release only includes smart perturbation
-    parser.add_argument('--adv_opt', default=0, type=int)
-    parser.add_argument('--adv_norm_level', default=0, type=int)
-    parser.add_argument('--adv_p_norm', default='inf', type=str)
+    parser.add_argument('--adv_opt', default=0, type=int, help='支持0，或1，目前只支持1，表示智能masked language model对抗学习')
+    parser.add_argument('--adv_norm_level', default=0, type=int, help='对应着perturbation.py中的norm_level参数，0和1分别代表着句子内级别的normalization还是多个句子的normalization')
+    parser.add_argument('--adv_p_norm', default='inf', type=str,help='虚拟对抗的正则化标准目标，使用哪种正则，支持l1,l2,或者论文中公式3中默认的普通正则化')
     parser.add_argument('--adv_alpha', default=1, type=float, help='控制标准误差和稳健误差之间的权衡，论文公式3，默认是均等的误差权衡, α=10用于预训练，α=1用于微调')
     parser.add_argument('--adv_k', default=1, type=int,help='K个投影梯度步, 为了在速度和性能之间达到良好的权衡，在所有的实验中都设定K=1， 论文中算法1部分')
     parser.add_argument('--adv_step_size', default=1e-5, type=float, help='论文算法1中的η，更新扰动的step size')

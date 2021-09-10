@@ -66,10 +66,11 @@ class MTDNNModel(object):
             self.mnetwork = self.network
         #设置损失类型，例如交叉熵损失
         self._setup_lossmap(self.config)
-        #设置回归损失，如果用户args存在的话
+        #设置回归损失，如果用户args存在的话， 蒸馏损失
         self._setup_kd_lossmap(self.config)
-        #设置KL训练的损失，如果配置中设置的话
+        #设置对抗训练的损失，如果配置中设置的话
         self._setup_adv_lossmap(self.config)
+        # 设置对抗训练模型的初始化
         self._setup_adv_training(self.config)
 
 
@@ -236,7 +237,7 @@ class MTDNNModel(object):
         # fw to get logits， 真正的把数据放入模型，开始前向网络
         logits = self.mnetwork(*inputs)
 
-        # compute loss, 每个任务的损失
+        # compute loss, 每个任务的标准损失
         loss = 0
         if self.task_loss_criterion[task_id] and (y is not None):
             loss_criterion = self.task_loss_criterion[task_id]
@@ -246,7 +247,7 @@ class MTDNNModel(object):
             else:
                 loss = self.task_loss_criterion[task_id](logits, y, weight, ignore_index=-1)
 
-        # 如果有其它损失，也计算其它损失，compute kd loss
+        # 如果有其它损失，也计算其它损失，compute kd loss， 蒸馏学习损失
         if self.config.get('mkd_opt', 0) > 0 and ('soft_label' in batch_meta):
             soft_labels = batch_meta['soft_label']
             soft_labels = self._to_cuda(soft_labels) if self.config['cuda'] else soft_labels
@@ -254,10 +255,11 @@ class MTDNNModel(object):
             kd_loss = kd_lc(logits, soft_labels, weight, ignore_index=-1) if kd_lc else 0
             loss = loss + kd_loss
 
-        # adv training
+        # 对抗学习 training
         if self.config.get('adv_train', False) and self.adv_teacher:
-            # task info
+            # task info， 任务类型 TaskType.Classification
             task_type = batch_meta['task_def']['task_type']
+            # 对抗学习的输入
             adv_inputs = [self.mnetwork, logits] + inputs + [task_type, batch_meta.get('pairwise_size', 1)]
             adv_loss, emb_val, eff_perturb = self.adv_teacher.forward(*adv_inputs)
             loss = loss + self.config['adv_alpha'] * adv_loss

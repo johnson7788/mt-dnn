@@ -73,12 +73,13 @@ class SmartPerturbation():
                 task_id=0,
                 task_type=TaskType.Classification,
                 pairwise=1):
-        # adv training
+        # adv training， 检测对抗学习支持的任务类型
         assert task_type in set([TaskType.Classification, TaskType.Ranking, TaskType.Regression]), 'Donot support {} yet'.format(task_type)
         vat_args = [input_ids, token_type_ids, attention_mask, premise_mask, hyp_mask, task_id, 1]
 
-        # init delta
+        # init delta， 注意task_id后面的参数fwd_type为1，表示只做embedding encode
         embed = model(*vat_args)
+        # 对embed后的向量进行扰动
         noise = generate_noise(embed, attention_mask, epsilon=self.noise_var)
         for step in range(0, self.K):
             vat_args = [input_ids, token_type_ids, attention_mask, premise_mask, hyp_mask, task_id, 2, embed + noise]
