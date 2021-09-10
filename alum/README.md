@@ -2,7 +2,8 @@
 [![Travis-CI](https://travis-ci.org/namisan/mt-dnn.svg?branch=master)](https://github.com/namisan/mt-dnn)
 
 
-# Adversarial Training for Large Neural Language Models (ALUM)
+# 对抗训练 (ALUM)
+用于预训练模型和继续训练
 
 This PyTorch package implements the Adversarial Training for Large Neural Language Models, as described in:
 
@@ -13,15 +14,15 @@ Adversarial Training for Large Neural Language Models <br/>
 
 ## Quickstart
 
-### Setup Environment
+### 设置环境，使用的fairseq环境
    [Setup](https://github.com/pytorch/fairseq).
 
 
-### Pre-train an ALUM model
-1. Download data </br>
+### 预训练模型 ALUM model
+1. 下载数据 </br>
    [Data Info](https://arxiv.org/abs/1907.11692) 
 
-2. Prepro/train </br>
+2. 准备和训练 </br>
    [Prepro/train](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.pretraining.md) </br>
    > bash alum_train.sh <data_dir> <LR> <alum_code_path> <RoBERTa_model_path>
 

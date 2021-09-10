@@ -18,7 +18,7 @@ path.append(os.getcwd())
 from mt_dnn.matcher import SANBertNetwork
 from data_utils.log_wrapper import create_logger
 
-logger =  create_logger(__name__, to_disk=False)
+logger = create_logger(__name__, to_disk=False)
 def model_config(parser):
     parser.add_argument('--update_bert_opt',  default=0, type=int)
     parser.add_argument('--multi_gpu_on', action='store_true')
