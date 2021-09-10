@@ -98,13 +98,14 @@ def convert(args):
     opt.update(config.to_dict())
     model = SANBertNetwork(opt)
     path = os.path.join(tf_checkpoint_path, 'bert_model.ckpt')
-    logger.info('Converting TensorFlow checkpoint from {}'.format(path))
+    logger.info('即将转换 TensorFlow checkpoint 从文件 {}中'.format(path))
     init_vars = tf.train.list_variables(path)
     names = []
     arrays = []
 
     for name, shape in init_vars:
         logger.info('Loading {} with shape {}'.format(name, shape))
+        #加载模型参数
         array = tf.train.load_variable(path, name)
         logger.info('Numpy array shape {}'.format(array.shape))
 
@@ -184,9 +185,9 @@ def convert(args):
     torch.save(params, pytorch_dump_path)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--tf_checkpoint_root', type=str, required=True)
-    parser.add_argument('--pytorch_checkpoint_path', type=str, required=True)
+    parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型')
+    parser.add_argument('--tf_checkpoint_root', type=str, required=True, help='原始的tf的模型checkpoint的位置')
+    parser.add_argument('--pytorch_checkpoint_path', type=str, required=True, help='保存模型pt文件到哪个位置')
     parser = model_config(parser)
     parser = train_config(parser)
     args = parser.parse_args()
