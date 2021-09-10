@@ -176,8 +176,40 @@ def dump(path, data):
         json.dump(data, f)
 
 def evaluation(model, datasets, data_list, task_defs, output_dir='checkpoints', epoch=0, n_updates=-1, with_label=False, tensorboard=None, glue_format_on=False, test_on=False, device=None, logger=None):
-    # eval on rank 1
-    print_message(logger, "开始评估")
+    """
+        # eval on rank 1
+    :param model:
+    :type model:
+    :param datasets:
+    :type datasets:
+    :param data_list:
+    :type data_list:
+    :param task_defs:
+    :type task_defs:
+    :param output_dir:
+    :type output_dir:
+    :param epoch:
+    :type epoch:
+    :param n_updates:
+    :type n_updates:
+    :param with_label:
+    :type with_label:
+    :param tensorboard:
+    :type tensorboard:
+    :param glue_format_on:
+    :type glue_format_on:
+    :param test_on:
+    :type test_on:
+    :param device:
+    :type device:
+    :param logger:
+    :type logger:
+    :return:
+    :rtype:
+    """
+    #保存每个任务的测试集的metrics，最为返回值
+    metrics = {}
+    print_message(logger, f"开始评估:{datasets}")
     test_prefix = "Test" if test_on else "Dev"
     if n_updates > 0:
         updates_str = "updates"
@@ -207,16 +239,18 @@ def evaluation(model, datasets, data_list, task_defs, output_dir='checkpoints', 
                     print_message(logger, '任务是 {0} -- {1} {2} -- {3} {4}: {5:.3f}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
                 else:
                     test_metrics[key] = str(val)
-                    print_message(logger, 'Task {0} -- {1} {2} -- {3} {4}: \n{5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
-
+                    print_message(logger, '任务是 {0} -- {1} {2} -- {3} {4}: \n{5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
+            metrics[dataset] = test_metrics
             if args.local_rank in [-1, 0]:
                 score_file = os.path.join(output_dir, '{}_{}_scores_{}_{}.json'.format(dataset, test_prefix.lower(), updates_str, updates))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': test_scores}
                 dump(score_file, results)
+                print(f"保存metric和预测结果到文件{score_file}")
                 if glue_format_on:
                     from experiments.glue.glue_utils import submit
                     official_score_file = os.path.join(output_dir, '{}_{}_scores_{}.tsv'.format(dataset, test_prefix.lower(), updates_str))
                     submit(official_score_file, results, label_dict)
+    return metrics
 def initialize_distributed(args):
     """Initialize torch.distributed."""
     args.rank = int(os.getenv('RANK', '0'))
@@ -436,6 +470,8 @@ def main():
             torch.save(encoding, os.path.join(output_dir, '{}_encoding.pt'.format(dataset)))
         return
     # 开始训练
+    # 收集测试集的metric值
+    test_metric_values = []
     for epoch in range(0, args.epochs):
         print_message(logger, '开始训练Epoch: {}'.format(epoch), level=1)
         start = datetime.now()
@@ -476,12 +512,16 @@ def main():
                 model.save(model_file)
 
         evaluation(model, args.test_datasets, dev_data_list, task_defs, output_dir, epoch, with_label=True, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=False, device=device, logger=logger)
-        evaluation(model, args.test_datasets, test_data_list, task_defs, output_dir, epoch, with_label=False, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=True, device=device, logger=logger)
-        print_message(logger, '[new test scores at {} saved.]'.format(epoch))
+        # 测试集的metric值
+        test_metric_value = evaluation(model, args.test_datasets, test_data_list, task_defs, output_dir, epoch, with_label=False, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=True, device=device, logger=logger)
+        # 收集后用于打印
+        test_metric_values.append({"epoch":epoch, "test_metric":test_metric_value})
+        print_message(logger, 'epoch {} 测试集分数和测试结果已经保存.'.format(epoch))
         if args.local_rank in [-1, 0]:
             model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
             print_message(logger, 'epoch结束保存模型: {}'.format(model_file))
             model.save(model_file)
+    print_message(logger, f"所有epoch的测试集metric{test_metric_values}")
     # 保存最后的模型
     if args.local_rank in [-1, 0]:
         model_file = os.path.join(output_dir, 'model_final.pt')

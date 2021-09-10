@@ -95,3 +95,6 @@ class DataFormat(IntEnum):
     RELATION = 7
 ```
 
+# 微调任务时添加对抗学习训练
+只需添加额外的参数
+--adv_train --adv_opt 1
