@@ -26,7 +26,7 @@ def model_config(parser):
     parser.add_argument('--update_bert_opt', default=0, type=int, help='是否更新固定预训练的bert模型参数，大于0表示固定')
     parser.add_argument('--multi_gpu_on', action='store_true',help='默认False，是否使用多GPU')
     parser.add_argument('--mem_cum_type', type=str, default='simple', help='bilinear/simple/default')
-    parser.add_argument('--answer_num_turn', type=int, default=5,help='论文中的超参数K，K步推理')
+    parser.add_argument('--answer_num_turn', type=int, default=5,help='论文中的超参数K，K步推理，默认迭代5次，即5个step')
     parser.add_argument('--answer_mem_drop_p', type=float, default=0.1)
     parser.add_argument('--answer_att_hidden_size', type=int, default=128)
     parser.add_argument('--answer_att_type', type=str, default='bilinear', help='bilinear/simple/default')

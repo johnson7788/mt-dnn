@@ -9,7 +9,6 @@ from __future__ import division
 import re
 import os
 import argparse
-import tensorflow as tf
 import torch
 import numpy as np
 from pytorch_pretrained_bert.modeling import BertConfig
@@ -91,15 +90,15 @@ def train_config(parser):
 
 
 def convert(args):
-    tf_checkpoint_path = args.tf_checkpoint_root
+    tf_checkpoint_path = args.torch_checkpoint
     bert_config_file = os.path.join(tf_checkpoint_path, 'bert_config.json')
     pytorch_dump_path = args.pytorch_checkpoint_path
     config = BertConfig.from_json_file(bert_config_file)
     opt = vars(args)
     opt.update(config.to_dict())
     model = SANBertNetwork(opt, initial_from_local=True)
-    path = os.path.join(tf_checkpoint_path, 'bert_model.ckpt')
-    logger.info('即将转换 TensorFlow checkpoint 从文件 {}中'.format(path))
+    path = os.path.join(tf_checkpoint_path, 'pytorch_model.bin')
+    logger.info('即将转换 checkpoint 从文件 {}中'.format(path))
     init_vars = tf.train.list_variables(path)
     names = []
     arrays = []
@@ -188,8 +187,8 @@ def convert(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型的路径')
-    parser.add_argument('--tf_checkpoint_root', type=str, required=True, help='原始的tf的模型checkpoint的位置')
-    parser.add_argument('--pytorch_checkpoint_path', type=str, required=True, help='保存模型pt文件到哪个位置')
+    parser.add_argument('--torch_checkpoint', type=str, default='/Users/admin/git/TextBrewer/huazhuang/mac_bert_model', help='原始的torch的模型checkpoint的位置')
+    parser.add_argument('--pytorch_checkpoint_path', type=str, default='mt_dnn_models/macbert.pt', help='保存模型pt文件到哪个位置')
     parser = model_config(parser)
     parser = train_config(parser)
     args = parser.parse_args()
