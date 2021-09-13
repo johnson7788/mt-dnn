@@ -239,7 +239,7 @@ def evaluation(model, datasets, data_list, task_defs, output_dir='checkpoints', 
                 else:
                     test_metrics[key] = str(val)
                     print_message(logger, '任务是 {0} -- {1} {2} -- {3} {4}: \n{5}'.format(dataset, updates_str, updates, test_prefix, key, val), level=1)
-            metrics[dataset] = test_metrics
+                metrics[f"{dataset}_{key}"] = val
             if args.local_rank in [-1, 0]:
                 score_file = os.path.join(output_dir, '{}_{}_scores_{}_{}.json'.format(dataset, test_prefix.lower(), updates_str, updates))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': test_scores}
