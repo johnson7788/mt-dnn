@@ -148,7 +148,7 @@ def convert(args, modeldirs):
     print(f"完成，保存模型到{pytorch_dump_path}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型的路径')
+    parser = argparse.ArgumentParser(description='把huggiface的transformers模型转换成torch的包含config配置的mtdnn pt模型')
     parser.add_argument('--model_name', type=str, default='roberta', help='哪个模型名称')
     modeldirs = {
         "macbert": {
