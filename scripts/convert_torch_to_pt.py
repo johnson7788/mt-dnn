@@ -12,6 +12,7 @@ import argparse
 import torch
 import numpy as np
 from pytorch_pretrained_bert.modeling import BertConfig
+from transformers import ElectraConfig, AlbertConfig
 from sys import path
 path.append(os.getcwd())
 from mt_dnn.matcher import SANBertNetwork
@@ -89,97 +90,55 @@ def train_config(parser):
     return parser
 
 
-def convert(args):
-    tf_checkpoint_path = args.torch_checkpoint
-    bert_config_file = os.path.join(tf_checkpoint_path, 'bert_config.json')
-    pytorch_dump_path = args.pytorch_checkpoint_path
-    config = BertConfig.from_json_file(bert_config_file)
+def convert(args, modeldirs):
+    """
+    转换torch模型到mtdnn模型
+    :param args:
+    :type args:
+    :param modeldirs:
+    :type modeldirs:
+    :return:
+    :rtype:
+    """
+    # 模型名称
+    model_name = args.model_name
+    #对应的基本信息
+    checkpoint_path = modeldirs[model_name]['torch_checkpoint']
+    config_name = modeldirs[model_name]['model_config_name']
+    model_config_file = os.path.join(checkpoint_path, config_name)
+    pytorch_dump_path = modeldirs[model_name]['save_path']
+    model_bin_name = modeldirs[model_name]['model_bin_name']
+    model_type = modeldirs[model_name]['model_type']
+    # 对应的mtdnn类型
+    """
+    class EncoderModelType(IntEnum):
+    BERT = 1
+    ROBERTA = 2
+    XLNET = 3
+    SAN = 4
+    XLM = 5
+    DEBERTA = 6
+    ELECTRA = 7
+    T5 = 8"""
+    if model_type == 'bert':
+        config = BertConfig.from_json_file(model_config_file)
+        args.encoder_type = 1
+    elif model_type == 'electra':
+        config = ElectraConfig.from_json_file(model_config_file)
+        args.encoder_type = 7
+    else:
+        raise Exception("位置的模型类型")
     opt = vars(args)
     opt.update(config.to_dict())
     model = SANBertNetwork(opt, initial_from_local=True)
-    path = os.path.join(tf_checkpoint_path, 'pytorch_model.bin')
-    logger.info('即将转换 checkpoint 从文件 {}中'.format(path))
-    init_vars = tf.train.list_variables(path)
-    names = []
-    arrays = []
-
-    for name, shape in init_vars:
-        logger.info('加载层 {}，形状是 {}'.format(name, shape))
-        #加载模型参数
-        array = tf.train.load_variable(path, name)
-        logger.info('参数的形状是： {}'.format(array.shape))
-
-        # new layer norm var name
-        # make sure you use the latest huggingface's new layernorm implementation
-        # if you still use beta/gamma, remove line: 48-52
-        if name.endswith('LayerNorm/beta'):
-            name = name[:-14] + 'LayerNorm/bias'
-        if name.endswith('LayerNorm/gamma'):
-            name = name[:-15] + 'LayerNorm/weight'
-
-        if name.endswith('bad_steps'):
-            print('bad_steps')
-            continue
-        if name.endswith('steps'):
-            print('step')
-            continue
-        if name.endswith('step'):
-            print('step')
-            continue
-        if name.endswith('adam_m'):
-            print('adam_m')
-            continue
-        if name.endswith('adam_v'):
-            print('adam_v')
-            continue
-        if name.endswith('loss_scale'):
-            print('loss_scale')
-            continue
-        names.append(name)
-        arrays.append(array)
-
-    for name, array in zip(names, arrays):
-        flag = False
-        if name == 'cls/squad/output_bias':
-            name = 'out_proj/bias'
-            flag = True
-        if name == 'cls/squad/output_weights':
-            name = 'out_proj/weight'
-            flag = True
-
-        logger.info('Loading {}'.format(name))
-        name = name.split('/')
-        if name[0] in ['redictions', 'eq_relationship', 'cls', 'output']:
-            logger.info('Skipping')
-            continue
-        pointer = model
-        for m_name in name:
-            if flag: continue
-            if re.fullmatch(r'[A-Za-z]+_\d+', m_name):
-                l = re.split(r'_(\d+)', m_name)
-            else:
-                l = [m_name]
-            if l[0] == 'kernel':
-                pointer = getattr(pointer, 'weight')
-            else:
-                pointer = getattr(pointer, l[0])
-            if len(l) >= 2:
-                num = int(l[1])
-                pointer = pointer[num]
-        if m_name[-11:] == '_embeddings':
-            pointer = getattr(pointer, 'weight')
-        elif m_name == 'kernel':
-            array = np.transpose(array)
-        elif flag:
-            continue
-            pointer = getattr(getattr(pointer, name[0]), name[1])
-        try:
-            assert tuple(pointer.shape) == array.shape
-        except AssertionError as e:
-            e.args += (pointer.shape, array.shape)
-            raise
-        pointer.data = torch.from_numpy(array)
-
+    bin_path = os.path.join(checkpoint_path, model_bin_name)
+    logger.info('即将转换 checkpoint 从文件 {}中'.format(bin_path))
+    state_dict = torch.load(bin_path, map_location='cpu')
+    # 重新更改下原始的模型参数名称，要和SAN模型的参数名字匹配，这样才能加载，SAN模型把所有参数都改成了bert开头的参数
+    state_weight = {k.replace(model_type,'bert'):v for k, v in state_dict.items()}
+    missing_keys, _ = model.load_state_dict(state_weight, strict=False)
+    print(f"missing_keys，注意丢失的参数{missing_keys}")
+    assert len(missing_keys) < 10, '是不是丢失的参数太多了?'
     nstate_dict = model.state_dict()
     params = {'state':nstate_dict, 'config': config.to_dict()}
     torch.save(params, pytorch_dump_path)
@@ -187,10 +146,36 @@ def convert(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型的路径')
-    parser.add_argument('--torch_checkpoint', type=str, default='/Users/admin/git/TextBrewer/huazhuang/mac_bert_model', help='原始的torch的模型checkpoint的位置')
-    parser.add_argument('--pytorch_checkpoint_path', type=str, default='mt_dnn_models/macbert.pt', help='保存模型pt文件到哪个位置')
+    parser.add_argument('--model_name', type=str, default='electra', help='哪个模型名称')
+    modeldirs = {
+        "macbert": {
+            "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/mac_bert_model',   #原始的torch的模型checkpoint的位置，这里是中文模型
+            "model_config_name": 'config.json',   #原始的torch的模型checkpoint的位置中的模型配置名字
+            "model_bin_name": 'pytorch_model.bin',   #原始的torch的模型checkpoint的位置中的模型配置名字
+            "save_path": "mt_dnn_models/macbert.pt",   #保存模型pt文件到哪个位置
+            "model_type": "bert"   #模型的类型
+        },
+        "bert": {
+            "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/bert_model',
+            # 原始的torch的模型checkpoint的位置，这里是中文模型
+            "model_config_name": 'config.json',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "model_bin_name": 'pytorch_model.bin',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "save_path": "mt_dnn_models/bert.pt",  # 保存模型pt文件到哪个位置
+            "model_type": "bert"  # 模型的类型
+        },
+        "electra": {
+            "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/electra_model',  # 原始的torch的模型checkpoint的位置,这里是中文模型
+            "model_config_name": 'config.json',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "model_bin_name": 'pytorch_model.bin',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "save_path": "mt_dnn_models/electra.pt",  # 保存模型pt文件到哪个位置
+            "model_type": "electra"  # 模型的类型，
+        },
+
+    }
+    # parser.add_argument('--torch_checkpoint', type=str, default='/Users/admin/git/TextBrewer/huazhuang/mac_bert_model', help='原始的torch的模型checkpoint的位置')
+    # parser.add_argument('--save_path', type=str, default='mt_dnn_models/macbert.pt', help='保存模型pt文件到哪个位置')
     parser = model_config(parser)
     parser = train_config(parser)
     args = parser.parse_args()
     logger.info(args)
-    convert(args)
+    convert(args, modeldirs)
