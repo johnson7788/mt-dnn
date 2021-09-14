@@ -12,7 +12,7 @@ import argparse
 import torch
 import numpy as np
 from pytorch_pretrained_bert.modeling import BertConfig
-from transformers import ElectraConfig, AlbertConfig
+from transformers import ElectraConfig, AlbertConfig, RobertaConfig
 from sys import path
 path.append(os.getcwd())
 from mt_dnn.matcher import SANBertNetwork
@@ -126,6 +126,9 @@ def convert(args, modeldirs):
     elif model_type == 'electra':
         config = ElectraConfig.from_json_file(model_config_file)
         args.encoder_type = 7
+    elif model_type == 'roberta':
+        config = RobertaConfig.from_json_file(model_config_file)
+        args.encoder_type = 2
     else:
         raise Exception("位置的模型类型")
     opt = vars(args)
@@ -146,7 +149,7 @@ def convert(args, modeldirs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='把tf模型转换成torch的包含config配置的pt模型的路径')
-    parser.add_argument('--model_name', type=str, default='electra', help='哪个模型名称')
+    parser.add_argument('--model_name', type=str, default='roberta', help='哪个模型名称')
     modeldirs = {
         "macbert": {
             "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/mac_bert_model',   #原始的torch的模型checkpoint的位置，这里是中文模型
@@ -162,6 +165,22 @@ if __name__ == "__main__":
             "model_bin_name": 'pytorch_model.bin',  # 原始的torch的模型checkpoint的位置中的模型配置名字
             "save_path": "mt_dnn_models/bert.pt",  # 保存模型pt文件到哪个位置
             "model_type": "bert"  # 模型的类型
+        },
+        "multilingual_bert": {
+            "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/bert-base-multilingual-uncased',
+            # 原始的torch的模型checkpoint的位置，这里是中文模型
+            "model_config_name": 'config.json',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "model_bin_name": 'pytorch_model.bin',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "save_path": "mt_dnn_models/multilingual_bert.pt",  # 保存模型pt文件到哪个位置
+            "model_type": "bert"  # 模型的类型
+        },
+        "roberta": {
+            "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/chinese-roberta',
+            # 原始的torch的模型checkpoint的位置，这里是中文模型
+            "model_config_name": 'config.json',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "model_bin_name": 'pytorch_model.bin',  # 原始的torch的模型checkpoint的位置中的模型配置名字
+            "save_path": "mt_dnn_models/chinese-roberta.pt",  # 保存模型pt文件到哪个位置
+            "model_type": "roberta"  # 模型的类型
         },
         "electra": {
             "torch_checkpoint": '/Users/admin/git/TextBrewer/huazhuang/electra_model',  # 原始的torch的模型checkpoint的位置,这里是中文模型
