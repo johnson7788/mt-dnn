@@ -80,7 +80,7 @@ def data_config(parser):
     parser.add_argument('--name', default='farmer')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml",help="使用的task任务定义的文件，默认是glue的task进行训练")
     parser.add_argument('--train_datasets', default='mnli',help='训练的多个任务的数据集，用逗号,分隔，如果多个数据集存在')
-    parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched',help='测试的多个任务的数据集，用逗号,分隔，如果多个数据集存在，根据任务名前缀自动匹配，例如mnli的前半部分mnli_')
+    parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched',help='测试的多个任务的数据集，这里用开发集，即dev开头的数据集测试，用逗号,分隔，如果多个数据集存在，根据任务名前缀自动匹配，例如mnli的前半部分mnli_')
     parser.add_argument('--glue_format_on', action='store_true')
     parser.add_argument('--mkd-opt', type=int, default=0, help=">0表示开启知识蒸馏, 输入数据中必须包含'softlabel'列")
     parser.add_argument('--do_padding', action='store_true')
@@ -510,11 +510,11 @@ def main():
                 print_message(logger, '每步都保存模型: {}'.format(model_file))
                 model.save(model_file)
 
-        evaluation(model, args.test_datasets, dev_data_list, task_defs, output_dir, epoch, with_label=True, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=False, device=device, logger=logger)
+        dev_metric_value = evaluation(model, args.test_datasets, dev_data_list, task_defs, output_dir, epoch, with_label=True, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=False, device=device, logger=logger)
         # 测试集的metric值
         test_metric_value = evaluation(model, args.test_datasets, test_data_list, task_defs, output_dir, epoch, with_label=False, tensorboard=tensorboard, glue_format_on=args.glue_format_on, test_on=True, device=device, logger=logger)
         # 收集后用于打印
-        test_metric_values.append({"epoch":epoch, "test_metric":test_metric_value})
+        test_metric_values.append({"epoch":epoch, "test_metric":test_metric_value, "dev_metric":dev_metric_value})
         print_message(logger, 'epoch {} 测试集分数和测试结果已经保存.'.format(epoch))
         if args.local_rank in [-1, 0]:
             model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
