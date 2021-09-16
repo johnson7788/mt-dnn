@@ -59,11 +59,11 @@ def train_and_filter(seed, task ,wrong_path):
         records['seed'] = sd
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
-        absa_ids, dems_ids, purchase_ids, brand_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
+        data_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
         # 注意这里的data_id是对应的源数据的索引，是全局唯一的
-        absa_train_data_id, absa_dev_data_id, absa_test_data_id = absa_ids
-        dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = dems_ids
-        purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = purchase_ids
+        (absa_train_data_id, absa_dev_data_id, absa_test_data_id) = data_ids['absa']
+        (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id) = data_ids['dem8']
+        (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id) = data_ids['purchase']
         # 第二步，源数据变token
         code = os.system(command="/home/wac/johnson/anaconda3/envs/py38/bin/python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --do_lower_case")
         assert code == 0, "数据处理不成功，请检查"

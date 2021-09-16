@@ -79,3 +79,29 @@ brand:
     - dev
     - test
   task_type: Classification
+nersentiment:
+  description: 序列分类的情感分析
+  data_format: Sequence
+  dropout_p: 0.3
+  enable_san: False
+  labels:
+  - O
+  - B-NEG
+  - I-NEG
+  - B-NEU
+  - I-NEU
+  - B-POS
+  - I-POS
+  - CLS
+  - SEP
+  metric_meta:
+  - SeqEval
+  n_class: 9
+  loss: SeqCeCriterion
+#  kd_loss: MseCriterion
+#  adv_loss: SymKlCriterion   #尚不支持对抗训练
+  split_names:
+  - train
+  - dev
+  - test
+  task_type: SeqenceLabeling

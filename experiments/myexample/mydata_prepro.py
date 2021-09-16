@@ -14,10 +14,39 @@ import sys
 
 logger = create_logger(__name__, to_disk=True, log_file='mydata_prepro.log')
 
-absa_source_file = "data_my/canonical_data/source_data/absa.pkl"
-dem8_source_file = "data_my/canonical_data/source_data/dem8.pkl"
-purchase_source_file = "data_my/canonical_data/source_data/purchase.pkl"
-brand_source_file = "data_my/canonical_data/source_data/brand.pkl"
+data_configs = {
+    'absa': {
+        'cache_file': "data_my/canonical_data/source_data/absa.pkl",
+        'DataFormat': DataFormat.PremiseAndOneHypothesis,
+        'do_truncate': True,
+        'todict': True,
+    },
+    'dem8': {
+        'cache_file': "data_my/canonical_data/source_data/dem8.pkl",
+        'DataFormat': DataFormat.PremiseAndOneHypothesis,
+        'do_truncate': True,
+        'todict': True,
+    },
+    'purchase': {
+        'cache_file': "data_my/canonical_data/source_data/purchase.pkl",
+        'DataFormat': DataFormat.PremiseAndOneHypothesis,
+        'do_truncate': True,
+        'todict': True,
+    },
+    'brand': {
+        'cache_file': "data_my/canonical_data/source_data/brand.pkl",
+        'DataFormat': DataFormat.RELATION,
+        'do_truncate': True,
+        'todict': False,
+    },
+    'nersentiment': {
+        'cache_file': "data_my/canonical_data/source_data/nersentiment.pkl",
+        'DataFormat': DataFormat.Sequence,
+        'do_truncate': True,
+        'todict': True,
+        'only_addidx': True,
+    },
+}
 
 def truncate(input_text, max_len, trun_post='post'):
     """
@@ -236,24 +265,27 @@ def truncate_relation(data, max_seq_len=150):
 
 def save_source_data(task_name="all"):
     sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
-    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand
+    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment
     #保存三个数据集的原始数据，方便以后不从label-studio读取
     if task_name == "absa" or task_name == "all":
         absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
-        pickle.dump(absa_data, open(absa_source_file, "wb"))
+        pickle.dump(absa_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "dem8" or task_name == "all":
         dem8_data = get_demision8(split=False,
                                  dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
                                                '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
-        pickle.dump(dem8_data, open(dem8_source_file, "wb"))
+        pickle.dump(dem8_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "purchase" or task_name == "all":
         purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True)
-        pickle.dump(purchase_data, open(purchase_source_file, "wb"))
+        pickle.dump(purchase_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "brand" or task_name == "all":
         brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
-        pickle.dump(brand_data, open(brand_source_file, "wb"))
+        pickle.dump(brand_data, open(data_configs[task_name]['cache_file'], "wb"))
+    if task_name == "nersentiment" or task_name == "all":
+        nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True)
+        pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "all":
-        return absa_data, dem8_data, purchase_data, brand_data
+        return absa_data, dem8_data, purchase_data, brand_data, nersentiment_data
     elif task_name == "absa":
         return absa_data
     elif task_name == "dem8":
@@ -262,44 +294,103 @@ def save_source_data(task_name="all"):
         return brand_data
     elif task_name == "purchase":
         return purchase_data
+    elif task_name == "nersentiment":
+        return nersentiment_data
 
-def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60, use_pickle=False, do_truncate=True):
+def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 128):
+    """
+    nertsentiment 的数据处理
+    :param data: eg: [{'text': '非常满意', 'channel': 'jd', 'seq_label': '非常满意', 'md5': '67e6ef489951383e8722b2787df381fa', 'sentiment_label': '积极'}]
+    :type data: list
+    :param do_truncate: 截断 bool
+    :param max_seq_length 最大序列长度 int
+    :return:
+    :rtype:
+    """
+    labels_dict = {
+        "积极": "POS",
+        "中性": "NEU",
+        "消极": "NEG",
+    }
+    # all_data 里面是label和text的token的列表格式
+    all_data = []
+    #把data转变成序列标注的形式
+    for uid, d in enumerate(data):
+        text = d['text']
+        text_len = len(text)
+        token_label = d['seq_label']
+        token_label_len = len(token_label)
+        sentiment_label = d['sentiment_label']
+        if token_label != 'empty':
+            # 搜索token_label在原文text中的位置
+            search_res = re.search(re.escape(token_label), text)
+            assert search_res, f"请检查token_label{token_label}是否在原文{text}中出现"
+            start,end = search_res.regs[0]
+            # 在token_label的前后范围截断, 在token_label的前后保留的长度是keep_token_len
+            keep_token_len = int((max_seq_length - token_label_len)/2)
+            start_idx = start - keep_token_len
+            end_ids = end + keep_token_len
+            if start_idx < 0:
+                #起始位置必须大于0
+                start_idx = 0
+            truncate_text = text[start_idx:end_ids]
+            # 默认都是O标签
+            labels = ["O"] * len(truncate_text)
+            tokens = [i for i in truncate_text]
+            search_res = re.search(re.escape(token_label), truncate_text)
+            new_start,new_end = search_res.regs[0]
+            label_word = labels_dict[sentiment_label]
+            labels[new_start] = f"B-{label_word}"
+            labels[new_start+1:new_end] = [f"I-{label_word}"] * (end-start-1)
+        else:
+            # 默认都是O标签
+            labels = ["O"] * text_len
+            tokens = [i for i in text]
+            # 截断
+            labels = labels[:max_seq_length]
+            tokens = tokens[:max_seq_length]
+        assert len(labels) == len(tokens), 'label和token长度不相等，有错误'
+        one_data = {"label": labels, "premise": tokens}
+        all_data.append(one_data)
+    return all_data
+
+def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60, use_pickle=False, do_truncate=True):
     """
     Aspect Base sentiment analysis
-    :param kind: 是加载absa数据，还是dem8的数据
+    :param task_name: 是加载absa数据，还是dem8的数据
     :param do_truncate: 是否做裁剪
     :return:
     :rtype:
     """
-    if kind == 'absa':
+    if task_name == 'absa':
         if use_pickle:
-            assert os.path.exists(absa_source_file), "源数据的pickle文件不存在，请检查"
-            with open(absa_source_file, 'rb') as f:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
                 all_data = pickle.load(f)
         else:
             all_data = save_source_data(task_name="absa")
 
         # 去除md5的位置，这个暂时不用
         all_data = [d[:-1] for d in all_data]
-    elif kind == 'dem8':
+    elif task_name == 'dem8':
         # 注意dirpath_list使用哪些数据进行训练，那么预测时，也是用这样的数据
         # labels2id = {
         #     "是": 0,
         #     "否": 1,
         # }
         if use_pickle:
-            assert os.path.exists(dem8_source_file), "源数据的pickle文件不存在，请检查"
-            with open(dem8_source_file, 'rb') as f:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
                 all_data = pickle.load(f)
         else:
             all_data = save_source_data(task_name="dem8")
         # 去除md5的位置，这个暂时不用
         all_data = [d[:-1] for d in all_data]
-    elif kind == 'purchase':
+    elif task_name == 'purchase':
         # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
         if use_pickle:
-            assert os.path.exists(purchase_source_file), "源数据的pickle文件不存在，请检查"
-            with open(purchase_source_file, 'rb') as f:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
                 a_data = pickle.load(f)
         else:
             a_data = save_source_data(task_name="purchase")
@@ -312,24 +403,34 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=10, right
             end_idx = d[4] + title_len
             one_data = [text, d[2],start_idx,end_idx,d[5]]
             all_data.append(one_data)
-    elif kind == 'brand':
+    elif task_name == 'brand':
         if use_pickle:
-            assert os.path.exists(brand_source_file), "源数据的pickle文件不存在，请检查"
-            with open(brand_source_file, 'rb') as f:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
                 all_data = pickle.load(f)
         else:
             all_data = save_source_data(task_name="brand")
+    elif task_name == 'nersentiment':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = save_source_data(task_name="nersentiment")
+        # 处理nersentiment数据并返回
+        data = do_truncate_nersentiment(data=all_data, do_truncate=do_truncate)
+        return data
     else:
         print("数据的种类不存在，退出")
         sys.exit(1)
     if do_truncate:
-        if kind == 'brand':
+        if task_name == 'brand':
             data = truncate_relation(data=all_data)
         else:
             original_data, data, locations = do_truncate_data(all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
     else:
         data = all_data
-    if kind == 'dem8':
+    if task_name == 'dem8':
         #处理完成的数据加前缀
         # 加上前缀，给每条数据
         new_data = []
@@ -342,7 +443,7 @@ def load_absa_dem8(kind='absa',left_max_seq_len=60, aspect_max_seq_len=10, right
         data = new_data
     return data
 
-def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1, todict=True):
+def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1, todict=True, only_addidx=False):
     """
     :param data:
     :type data:
@@ -373,19 +474,32 @@ def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0
     dev_data = [data[id] for id in dev_data_id]
     test_data = [data[id] for id in test_data_id]
     # 处理一下，保存的格式
-    def change_data(kind_data):
+    def change_data(kind_data, only_addidx=False):
+        """
+        :param kind_data:
+        :type kind_data:
+        :param only_addidx: 数据是ok的，只需加一个idx即可
+        :type only_addidx:
+        :return:
+        :rtype:
+        """
         rows = []
-        for idx, one_data in enumerate(kind_data):
-            content, keyword, label = one_data
-            # label_id = labels2id[label]
-            # assert label in ['消极','中性','积极','是','否'], "label不是特定的关键字，那么my_task_def.yml配置文件中的labels就不能解析，会出现错误"
-            sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
-            rows.append(sample)
+        if only_addidx:
+            for idx, one_data in enumerate(kind_data):
+                one_data['uid'] = idx
+                rows.append(one_data)
+        else:
+            for idx, one_data in enumerate(kind_data):
+                content, keyword, label = one_data
+                # label_id = labels2id[label]
+                # assert label in ['消极','中性','积极','是','否'], "label不是特定的关键字，那么my_task_def.yml配置文件中的labels就不能解析，会出现错误"
+                sample = {'uid': idx, 'premise': content, 'hypothesis': keyword, 'label': label}
+                rows.append(sample)
         return rows
     if todict:
-        train_data = change_data(train_data)
-        dev_data = change_data(dev_data)
-        test_data = change_data(test_data)
+        train_data = change_data(train_data, only_addidx)
+        dev_data = change_data(dev_data,only_addidx)
+        test_data = change_data(test_data,only_addidx)
     print(f"训练集数量{len(train_data)}, 开发集数量{len(dev_data)}, 测试集数量{len(test_data)}")
     return train_data, dev_data, test_data, train_data_id, dev_data_id, test_data_id
 
@@ -421,70 +535,32 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
     if not os.path.isdir(canonical_data_root):
         os.mkdir(canonical_data_root)
     print(f"将要保存到:{canonical_data_root}, 是否使用缓存的文件:{use_pkl}, 使用的随机数种子是:{seed}")
-
-    if dataset == 'all' or dataset == 'absa':
-        ##############ABSA 的数据##############
-        #保存成tsv文件
-        data = load_absa_dem8(kind='absa', use_pickle=use_pkl)
-        absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed)
-        #保存文件
-        absa_train_fout = os.path.join(canonical_data_root, 'absa_train.tsv')
-        absa_dev_fout = os.path.join(canonical_data_root, 'absa_dev.tsv')
-        absa_test_fout = os.path.join(canonical_data_root, 'absa_test.tsv')
-        dump_rows(absa_train_data, absa_train_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(absa_dev_data, absa_dev_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(absa_test_data, absa_test_fout, DataFormat.PremiseAndOneHypothesis)
-        logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
-        print()
-    if dataset == 'all' or dataset == 'dem8':
-        ##############8个维度的数据##############
-        data = load_absa_dem8(kind='dem8', use_pickle=use_pkl)
-        dem8_train_data, dem8_dev_data, dem8_test_data,dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id = split_save_data(data=data,random_seed=seed)
-        #保存文件
-        dem8_train_fout = os.path.join(canonical_data_root, 'dem8_train.tsv')
-        dem8_dev_fout = os.path.join(canonical_data_root, 'dem8_dev.tsv')
-        dem8_test_fout = os.path.join(canonical_data_root, 'dem8_test.tsv')
-        dump_rows(dem8_train_data, dem8_train_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(dem8_dev_data, dem8_dev_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(dem8_test_data, dem8_test_fout, DataFormat.PremiseAndOneHypothesis)
-        logger.info(f'初步处理dem8数据完成, 保存规范后的数据到{dem8_train_fout}, {dem8_dev_fout}, {dem8_test_fout}')
-        print()
-
-    if dataset == 'all' or dataset == 'absa':
-        ##############购买意向数据##############
-        data = load_absa_dem8(kind='purchase', use_pickle=use_pkl)
-        purchase_train_data, purchase_dev_data, purchase_test_data, purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id = split_save_data(data=data,random_seed=seed)
-        #保存文件
-        purchase_train_fout = os.path.join(canonical_data_root, 'purchase_train.tsv')
-        purchase_dev_fout = os.path.join(canonical_data_root, 'purchase_dev.tsv')
-        purchase_test_fout = os.path.join(canonical_data_root, 'purchase_test.tsv')
-        dump_rows(purchase_train_data, purchase_train_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(purchase_dev_data, purchase_dev_fout, DataFormat.PremiseAndOneHypothesis)
-        dump_rows(purchase_test_data, purchase_test_fout, DataFormat.PremiseAndOneHypothesis)
-        logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{purchase_train_fout}, {purchase_dev_fout}, {purchase_test_fout}')
-        print()
-    if dataset == 'all' or dataset == 'brand':
-        data = load_absa_dem8(kind='brand', use_pickle=use_pkl, do_truncate=True)
-        brand_train_data, brand_dev_data, brand_test_data, brand_train_data_id, brand_dev_data_id, brand_test_data_id = split_save_data(data=data,random_seed=seed, todict=False)
-        #保存文件
-        brand_train_fout = os.path.join(canonical_data_root, 'brand_train.tsv')
-        brand_dev_fout = os.path.join(canonical_data_root, 'brand_dev.tsv')
-        brand_test_fout = os.path.join(canonical_data_root, 'brand_test.tsv')
-        dump_rows(brand_train_data, brand_train_fout, DataFormat.RELATION)
-        dump_rows(brand_dev_data, brand_dev_fout, DataFormat.RELATION)
-        dump_rows(brand_test_data, brand_test_fout, DataFormat.RELATION)
-        logger.info(f'初步处理purchase数据完成, 保存规范后的数据到{brand_train_fout}, {brand_dev_fout}, {brand_test_fout}')
-        print()
+    # 每个任务的数据的ids
+    data_ids = {}
+    for task_name, data_cf in data_configs.items():
+        if dataset == 'all' or dataset == task_name:
+            ##############处理数据##############
+            data_format = data_cf['DataFormat']
+            do_truncate = data_cf['do_truncate']
+            todict = data_cf['todict']
+            only_addidx = data_cf.get('only_addidx')
+            #保存成tsv文件
+            data = load_absa_dem8(task_name=task_name, use_pickle=use_pkl, do_truncate=do_truncate)
+            absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed, todict=todict,only_addidx=only_addidx)
+            #保存文件
+            absa_train_fout = os.path.join(canonical_data_root, f'{task_name}_train.tsv')
+            absa_dev_fout = os.path.join(canonical_data_root, f'{task_name}_dev.tsv')
+            absa_test_fout = os.path.join(canonical_data_root, f'{task_name}_test.tsv')
+            dump_rows(absa_train_data, absa_train_fout, data_format)
+            dump_rows(absa_dev_data, absa_dev_fout, data_format)
+            dump_rows(absa_test_data, absa_test_fout, data_format)
+            logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
+            print()
+            data_ids[task_name] = (absa_train_data_id, absa_dev_data_id, absa_test_data_id)
     if dataset == 'all':
-        return (absa_train_data_id, absa_dev_data_id, absa_test_data_id), (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id), (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id), (brand_train_data_id, brand_dev_data_id, brand_test_data_id)
-    elif dataset == 'brand':
-        return brand_train_data_id, brand_dev_data_id, brand_test_data_id
-    elif dataset == 'absa':
-        absa_train_data_id, absa_dev_data_id, absa_test_data_id
-    elif dataset == 'dem8':
-        dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id
-    elif dataset == 'purchase':
-        purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id
+        return data_ids
+    else:
+        return data_ids[dataset]
 
 if __name__ == '__main__':
     args = parse_args()

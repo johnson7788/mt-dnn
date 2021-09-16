@@ -187,7 +187,7 @@ class MTDNNModel(object):
         if config.get('adv_train', False):
             for idx, task_def in enumerate(task_def_list):
                 cs = task_def.adv_loss
-                assert cs is not None
+                assert cs is not None, "如果使用对抗训练，对抗损失不能为None"
                 lc = LOSS_REGISTRY[cs](name='Adv Loss func of task {}: {}'.format(idx, cs))
                 self.adv_task_loss_criterion.append(lc)
 
