@@ -1,0 +1,39 @@
+cluener:
+  description: CLUE https://github.com/johnson7788/CLUENER2020 的NER命名实体识别
+  data_format: Sequence
+  dropout_p: 0.3
+  enable_san: False
+  labels:
+  - O
+  - B-ADDRESS
+  - I-ADDRESS
+  - B-BOOK
+  - I-BOOK
+  - B-COMPANY
+  - I-COMPANY
+  - B-GAME
+  - I-GAME
+  - B-GOVERNMENT
+  - I-GOVERNMENT
+  - B-MOVIE
+  - I-MOVIE
+  - B-NAME
+  - I-NAME
+  - B-ORGANIZATION
+  - I-ORGANIZATION
+  - B-POSITION
+  - I-POSITION
+  - B-SCENE
+  - I-SCENE
+  - CLS
+  - SEP
+  metric_meta:
+  - SeqEval
+  n_class: 23
+  loss: SeqCeCriterion
+#  kd_loss: MseCriterion
+#  adv_loss: SymKlCriterion   #尚不支持对抗训练
+  split_names:
+  - train
+  - dev
+  task_type: SeqenceLabeling
