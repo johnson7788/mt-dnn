@@ -85,12 +85,13 @@ def pinpai_fake_predict(data):
             last_word = sorted_res_by_start[idx - last_idx][0]
         word = sorted_res_by_start[idx][0]
         if end <= last_end:
-            #说明这个单词在上一个单词的内部，那么就不需要了，可以弹出去了
+            # 说明这个单词在上一个单词的内部，那么就不需要了，可以弹出去了
             will_pop.append(word)
-            print(f"检测到单词{word}在单词{last_word}当中，已去除")
+            print(f"检测到单词:{word}在单词:{last_word}当中，已去除:{word}")
         elif start == last_start and last_end < end:
-            will_pop.append(word)
-            print(f"检测到单词{word}在单词{last_word}当中，已去除")
+            if last_word != word:
+                will_pop.append(last_word)
+                print(f"检测到单词:{last_word}在单词:{word}当中，已去除:{last_word}")
     final_result = [i for i in sorted_res_by_start if i[0] not in will_pop]
     return final_result
 
@@ -112,9 +113,6 @@ def absa_predict():
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
-
-
-
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=3336, debug=False, threaded=False)
