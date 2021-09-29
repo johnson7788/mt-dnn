@@ -86,8 +86,9 @@ def pinpai_fake_predict(data):
         word = sorted_res_by_start[idx][0]
         if end <= last_end:
             # 说明这个单词在上一个单词的内部，那么就不需要了，可以弹出去了
-            will_pop.append(word)
-            print(f"检测到单词:{word}在单词:{last_word}当中，已去除:{word}")
+            if last_word != word:
+                will_pop.append(word)
+                print(f"检测到单词:{word}在单词:{last_word}当中，已去除:{word}")
         elif start == last_start and last_end < end:
             if last_word != word:
                 will_pop.append(last_word)
