@@ -61,7 +61,7 @@ class SinglePredictDataset(Dataset):
                  max_seq_length=512,
                  max_predictions_per_seq=80
                  ):
-        data = self.build_data(data=data, tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab)
+        data = self.build_data(data=data, tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab, max_seq_len=max_seq_length)
         data = self.add_factor(data)
         self._data = data
         self._tokenizer = tokenizer
@@ -1115,16 +1115,19 @@ class TorchMTDNNModel(object):
         return final_res
     def predict_pinpainer(self, data, max_seq_len=500, task_name='pinpainer'):
         """
-        品牌的ner识别, 接收来自label-studio的数据
+        品牌的ner识别, 接收来自label-studio的数据, 只返回是品牌的那些词
         :param data:[[text, keywords_text]]
         :type data:
         :return: 嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
                         one_result = [keyword, label, '0.5', start, end]
         :rtype:
         """
-        result = []
-        # one_result = [keyword, label, '0.5', start, end]
-        text_data = [d[0] for d in data]
+        label2name = {
+            "B-PIN": "品牌",
+            "I-PIN": "品牌",
+        }
+        results = []
+        text_data = [{"premise":d[0],"label":[0] * len(d[0])} for d in data]
         test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, maxlen=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         with torch.no_grad():
@@ -1139,12 +1142,61 @@ class TorchMTDNNModel(object):
                 score, pred, gold = self.model.predict(batch_info, batch_data)
                 predictions.extend(pred)
                 golds.extend(gold)
-                scores.extend(score)
+                scores.append(score)  #score还有一些问题，暂时不用了
                 ids.extend(batch_info['uids'])
-            id2tok = self.tasks_info[task_name]['id2tok']
-            predict_labels = [id2tok[p] for p in predictions]
-            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
-            results = list(zip(predict_labels, scores, data))
+        id2tok = self.tasks_info[task_name]['id2tok']
+        predict_labels = [[id2tok[tokp] for tokp in p] for p in predictions ]
+        # 对预测的每个token的label进行筛选
+        print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        for plabel, sdata in zip(predict_labels, data):
+            # 对每条数据的预测结果进行整理，返回label-studio需要的格式
+            # one_result = [keyword, label, '0.5', start, end]
+            # 去掉第一个和最后一个token的预测结果，即去掉CLS和SEP
+            token_label = plabel[1:-1]
+            text = sdata[0]
+            # 不相等也是有可能的，因为进行了截断或填充
+            # assert len(text) == len(token_label), "预测的token的label长度和text的长度不等"
+            pinpai_words = ""
+            #保存这个品牌词的位置信息
+            pinpai_words_idx = []
+            # 保存这个句子所有的品牌词和品牌词的起始位置
+            p_words = []
+            p_words_start_end = []
+            for idx in range(len(token_label)):
+                # 单词的位置应该是tokenize后的结果，
+                word = text[idx]
+                if token_label[idx] == "B-PIN":
+                    if pinpai_words:
+                        #说明上一个词也是品牌词，说明这是连续的2个品牌词，那么这个信息存一下
+                        p_words.append(pinpai_words)
+                        if len(pinpai_words_idx) == 1:
+                            # 如果连续2个B-PIN，那么这个预测有一些问题，
+                            p_words_start_end.append([pinpai_words_idx[0], pinpai_words_idx[0]+1])
+                        else:
+                            p_words_start_end.append([pinpai_words_idx[0],pinpai_words_idx[-1]])
+                        # 重置
+                        pinpai_words = ""
+                        pinpai_words_idx = []
+                    #发现品牌词的开头单词
+                    pinpai_words += word
+                    pinpai_words_idx.append(idx)
+                elif token_label[idx] == "I-PIN":
+                    # 如果没有预测到B-PIN开头，直接是I-PIN，那么这个也算一个单词
+                    pinpai_words += word
+                    pinpai_words_idx.append(idx)
+                else:
+                    if pinpai_words:
+                        # 说明一个品牌词结束了，改保存了
+                        p_words.append(pinpai_words)
+                        if len(pinpai_words_idx) == 1:
+                            # 如果连续2个B-PIN，那么这个预测有一些问题，
+                            p_words_start_end.append([pinpai_words_idx[0], pinpai_words_idx[0]+1])
+                        else:
+                            p_words_start_end.append([pinpai_words_idx[0],pinpai_words_idx[-1]])
+                        # 重置
+                        pinpai_words = ""
+                        pinpai_words_idx = []
+            results.append([p_words, p_words_start_end])
         return results
 
 

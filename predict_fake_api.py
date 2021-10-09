@@ -44,8 +44,8 @@ def pinpai_fake_predict(data):
     """
     hard_pinpai_text = "谷雨，兰，后，吕，CL，Three，追风，滋源，凡士林，霸王，UH，有情，马丁，春夏，Haa，福来，大宝，歌剧魅影，蒂花之秀，井田，天使之眼，伊索，春雨，维多利亚的秘密，火烈鸟，青蛙王子，万花镜，自然乐园，赫拉，李医生，摩洛哥油，934，三生花，好孩子，海瑟薇，Goat，塞巴斯汀，Ren，神秘博士，C咖，依云，森田，安娜苏，凌博士，德妃，儒意，溯华，红之，混合故事"
     hard_pinpai = hard_pinpai_text.split("，")
-    result = []
     for one in data:
+        result = []
         text, keywords_text = one
         keywords = keywords_text.split(',')
         # 假设所有困难词用jieba分词后，没有匹配上，那么就返回预测不是品牌，否则预测为品牌
@@ -94,7 +94,9 @@ def pinpai_fake_predict(data):
                 will_pop.append(last_word)
                 print(f"检测到单词:{last_word}在单词:{word}当中，已去除:{last_word}")
     final_result = [i for i in sorted_res_by_start if i[0] not in will_pop]
-    return final_result
+    # 嵌套一层结果，因为这里假设是单条数据的原因
+    results = [final_result]
+    return results
 
 
 @app.route("/api/label_studio_pinpai_predict", methods=['POST'])
