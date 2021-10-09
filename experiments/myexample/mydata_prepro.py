@@ -46,6 +46,13 @@ data_configs = {
         'todict': True,
         'only_addidx': True,
     },
+    'pinpainer': {
+        'cache_file': "data_my/canonical_data/source_data/pinpainer.pkl",
+        'DataFormat': DataFormat.Sequence,
+        'do_truncate': True,
+        'todict': True,
+        'only_addidx': True,
+    },
 }
 
 def truncate(input_text, max_len, trun_post='post'):
@@ -265,7 +272,7 @@ def truncate_relation(data, max_seq_len=150):
 
 def save_source_data(task_name="all"):
     sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
-    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment
+    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment, get_all_pinpainer
     #保存三个数据集的原始数据，方便以后不从label-studio读取
     if task_name == "absa" or task_name == "all":
         absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
@@ -284,8 +291,11 @@ def save_source_data(task_name="all"):
     if task_name == "nersentiment" or task_name == "all":
         nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True)
         pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
+    if task_name == "pinpainer" or task_name == "all":
+        pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True)
+        pickle.dump(pinpainer_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "all":
-        return absa_data, dem8_data, purchase_data, brand_data, nersentiment_data
+        return absa_data, dem8_data, purchase_data, brand_data, nersentiment_data, pinpainer_data
     elif task_name == "absa":
         return absa_data
     elif task_name == "dem8":
@@ -296,8 +306,10 @@ def save_source_data(task_name="all"):
         return purchase_data
     elif task_name == "nersentiment":
         return nersentiment_data
+    elif task_name == "pinpainer":
+        return pinpainer_data
 
-def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 128):
+def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 180):
     """
     nertsentiment 的数据处理
     :param data: eg: [{'text': '非常满意', 'channel': 'jd', 'seq_label': '非常满意', 'md5': '67e6ef489951383e8722b2787df381fa', 'sentiment_label': '积极'}]
@@ -351,6 +363,46 @@ def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 128):
             tokens = tokens[:max_seq_length]
         assert len(labels) == len(tokens), 'label和token长度不相等，有错误'
         one_data = {"label": labels, "premise": tokens}
+        all_data.append(one_data)
+    return all_data
+def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
+    """
+    品牌ner识别的标签
+    :param data: eg: {'text': '【有情】防脱发生姜洗发水500ml ?后22.9元 go:有情生姜洗发水防脱发生发去屑止痒去控油蓬松男女士专用姜汁膏露  ?', 'channel': 'weibo', 'keyword': '有情,后', 'labels': [{'end': 3, 'labels': '品牌', 'start': 1, 'text': '有情'}, {'end': 20, 'labels': '不是品牌', 'start': 19, 'text': '后'}, {'end': 31, 'labels': '品牌', 'start': 29, 'text': '有情'}], 'md5': '9f5dbe372f879aff28b6e91473b1d7bf'}
+    :type data: list， 标签分为3种，即 B-PIN, I-PIN, O 的BIO格式
+    :param do_truncate: 截断 bool
+    :param max_seq_length 最大序列长度 int
+    :return:
+    :rtype:
+    """
+    labels_dict = {
+        "品牌": "PIN",
+    }
+    # all_data 里面是label和text的token的列表格式
+    all_data = []
+    #把data转变成序列标注的形式
+    for uid, d in enumerate(data):
+        text = d['text']
+        text_len = len(text)
+        labels = d['labels']
+        token_labels = ["O"] * text_len
+        tokens = list(text)
+        for label in labels:
+            start = label['start']
+            end = label['end']
+            label_name = label['labels']
+            keyword_name = label['text']
+            #校验下品牌的名字对应的位置在原文中是存在，并且正确的
+            assert keyword_name == text[start:end], "原文中对应的开始和结束位置的词和标签给定的词不一致，请检查"
+            if label_name in labels_dict:
+                # 只需要标注为 "品牌的字段的内容", 这里即 "PIN"，
+                token_label = labels_dict[label_name]
+                token_labels[start] = f"B-{token_label}"
+                token_labels[start+1:end] = [f"I-{token_label}"] * (end-start-1)
+        if do_truncate:
+            token_labels = token_labels[:max_seq_length]
+            tokens = tokens[:max_seq_length]
+        one_data = {"label": token_labels, "premise": tokens}
         all_data.append(one_data)
     return all_data
 
@@ -419,6 +471,16 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
             all_data = save_source_data(task_name="nersentiment")
         # 处理nersentiment数据并返回
         data = do_truncate_nersentiment(data=all_data, do_truncate=do_truncate)
+        return data
+    elif task_name == 'pinpainer':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = save_source_data(task_name)
+        # 处理nersentiment数据并返回
+        data = do_truncate_pinpainer(data=all_data, do_truncate=do_truncate)
         return data
     else:
         print("数据的种类不存在，退出")

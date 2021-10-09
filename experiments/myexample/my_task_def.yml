@@ -105,3 +105,25 @@ nersentiment:
   - dev
   - test
   task_type: SeqenceLabeling
+pinpainer:
+  description: 品牌通过ner识别
+  data_format: Sequence
+  dropout_p: 0.3
+  enable_san: False
+  labels:
+  - O
+  - B-PIN
+  - I-PIN
+  - CLS
+  - SEP
+  metric_meta:
+  - SeqEval
+  n_class: 5
+  loss: SeqCeCriterion
+#  kd_loss: MseCriterion
+#  adv_loss: SymKlCriterion   #尚不支持对抗训练
+  split_names:
+  - train
+  - dev
+  - test
+  task_type: SeqenceLabeling

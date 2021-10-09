@@ -98,3 +98,43 @@ class DataFormat(IntEnum):
 # 微调任务时添加对抗学习训练
 只需添加额外的参数
 --adv_train --adv_opt 1
+
+
+
+## 测试CLUE NER的数据集
+标签, 一共20个
+['B-ADDRESS', 'I-ADDRESS', 'B-BOOK', 'I-BOOK', 'B-COMPANY', 'I-COMPANY', 'B-GAME', 'I-GAME', 'B-GOVERNMENT', 'I-GOVERNMENT', 'B-MOVIE', 'I-MOVIE', 'B-NAME', 'I-NAME', 'B-ORGANIZATION', 'I-ORGANIZATION', 'B-POSITION', 'I-POSITION', 'B-SCENE', 'I-SCENE']
+
+python experiments/myexample/cluener_prepro.py
+```angular2html
+09/27/2021 02:47:00 训练集加载了 10748条 NER样本
+09/27/2021 02:47:00 开发集加载了 1343条 NER样本
+09/27/2021 02:47:00 CLUE NER数据处理完成
+```
+python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/cluener_def.yml --do_lower_case
+```angular2html
+09/27/2021 02:49:01 开始tokenize任务: cluener
+09/27/2021 02:49:02 保存文件到data_my/canonical_data/bert-base-chinese/cluener_train.json
+09/27/2021 02:49:10 保存文件到data_my/canonical_data/bert-base-chinese/cluener_dev.json
+09/27/2021 02:49:11 文件data_my/canonical_data/cluener_test.tsv不存在，请检查
+```
+python train.py --data_dir data_my/canonical_data/bert-base-chinese --init_checkpoint mt_dnn_models/bert_model_base_chinese.pt --batch_size 16 --max_seq_len 192 --task_def experiments/myexample/cluener_def.yml --output_dir checkpoints/bert_cluener --log_file checkpoints/bert_cluenera/log.log --answer_opt 1 --optimizer adamax --epochs 5 --train_datasets cluener --test_datasets cluener --grad_clipping 0 --grad_accumulation_step 2 --global_grad_clipping 1 --learning_rate 5e-5 --fp16
+
+训练结果
+``
+               precision    recall  f1-score   support
+     ADDRESS     0.5908    0.6542    0.6209       373
+        BOOK     0.7530    0.8117    0.7812       154
+     COMPANY     0.7543    0.8042    0.7785       378
+        GAME     0.7404    0.8508    0.7918       295
+  GOVERNMENT     0.7331    0.8340    0.7803       247
+       MOVIE     0.7877    0.7616    0.7744       151
+        NAME     0.8208    0.8667    0.8431       465
+ORGANIZATION     0.6818    0.7766    0.7261       367
+    POSITION     0.7426    0.8129    0.7762       433
+       SCENE     0.6696    0.7177    0.6928       209
+
+   micro avg     0.7258    0.7926    0.7577      3072
+   macro avg     0.7274    0.7890    0.7565      3072
+weighted avg     0.7270    0.7926    0.7581      3072
+   ``
