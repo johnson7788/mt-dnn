@@ -118,6 +118,8 @@ class SinglePredictDataset(Dataset):
         for idx, sample in enumerate(data):
             ids = sample['uid']
             premise = sample['premise']
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
             label = sample['label']
             input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, max_length=max_seq_len)
             features = {
@@ -137,6 +139,9 @@ class SinglePredictDataset(Dataset):
         for idx, sample in enumerate(data):
             premise = sample[0]
             hypothesis = sample[1]
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
+                hypothesis = hypothesis.lower()
             label = 0
             input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
                                                                      max_length=max_seq_len)
@@ -182,6 +187,8 @@ class SinglePredictDataset(Dataset):
         feature_datas = []
         for idx, sample in enumerate(data):
             premise = sample['premise']
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
             tokens = []
             labels = []
             for i, word in enumerate(premise):
@@ -315,6 +322,8 @@ class SinglePredictDataset(Dataset):
         sentence = item['text']
         pos_head = item['brand']['pos']
         pos_tail = item['attribute']['pos']
+        if tokenizer.do_lower_case:
+            sentence = sentence.lower()
 
         pos_min = pos_head
         pos_max = pos_tail
@@ -397,6 +406,7 @@ class TorchMTDNNModel(object):
         # 最大的batch_size
         self.predict_batch_size = 64
         self.tokenize_model = 'bert-base-chinese'
+        self.do_lower_case = True
         # 训练好的模型的存放位置
         self.checkpoint = 'trained_model/absa_dem8.pt'
         self.type_to_prefix = {
@@ -454,7 +464,7 @@ class TorchMTDNNModel(object):
         self.config['adv_train'] = False
         del self.state_dict['optimizer']
         # 初始化tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenize_model)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenize_model, do_lower_case=self.do_lower_case)
         # 初始化模型
         self.model = MTDNNModel(self.config, device=self.device, state_dict=self.state_dict)
         # encoder的类型 EncoderModelType.BERT
@@ -1148,12 +1158,22 @@ class TorchMTDNNModel(object):
         predict_labels = [[id2tok[tokp] for tokp in p] for p in predictions ]
         # 对预测的每个token的label进行筛选
         print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
-        for plabel, sdata in zip(predict_labels, data):
+        data_tokens = []
+        # text 转变成tokens
+        for idx, sample in enumerate(data):
+            premise = sample[0]
+            tokens = []
+            for i, word in enumerate(premise):
+                subwords = self.tokenizer.tokenize(word)
+                tokens.extend(subwords)
+            if len(premise) > max_seq_len - 2:
+                tokens = tokens[:max_seq_len - 2]
+            data_tokens.append(tokens)
+        for plabel, tokens in zip(predict_labels, data_tokens):
             # 对每条数据的预测结果进行整理，返回label-studio需要的格式
             # one_result = [keyword, label, '0.5', start, end]
             # 去掉第一个和最后一个token的预测结果，即去掉CLS和SEP
             token_label = plabel[1:-1]
-            text = sdata[0]
             # 不相等也是有可能的，因为进行了截断或填充
             # assert len(text) == len(token_label), "预测的token的label长度和text的长度不等"
             pinpai_words = ""
@@ -1164,7 +1184,7 @@ class TorchMTDNNModel(object):
             p_words_start_end = []
             for idx in range(len(token_label)):
                 # 单词的位置应该是tokenize后的结果，
-                word = text[idx]
+                word = tokens[idx]
                 if token_label[idx] == "B-PIN":
                     if pinpai_words:
                         #说明上一个词也是品牌词，说明这是连续的2个品牌词，那么这个信息存一下
