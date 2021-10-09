@@ -98,7 +98,7 @@ def pinpai_fake_predict(data):
 
 
 @app.route("/api/label_studio_pinpai_predict", methods=['POST'])
-def absa_predict():
+def pinpainer_predict():
     """
     用于label studio的品牌的预测, aspects词是可能是多个，是用逗号隔开
     Args:

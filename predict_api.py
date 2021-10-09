@@ -389,11 +389,11 @@ class TorchMTDNNModel(object):
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
         # absa 情感分析， dem8是8个维度的判断, purchase 购买意向, brand品牌功效关系判断
-        self.task_names = ['absa', 'dem8', 'purchase','brand']
+        self.task_names = ['absa', 'dem8', 'purchase','brand','nersentiment', 'pinpainer']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度
-        self.max_seq_len = 512
+        self.max_seq_len = 500
         # 最大的batch_size
         self.predict_batch_size = 64
         self.tokenize_model = 'bert-base-chinese'
@@ -1113,6 +1113,40 @@ class TorchMTDNNModel(object):
             every_result = result[start_idx:end_idx]
             final_res.append(every_result)
         return final_res
+    def predict_pinpainer(self, data, max_seq_len=500, task_name='pinpainer'):
+        """
+        品牌的ner识别, 接收来自label-studio的数据
+        :param data:[[text, keywords_text]]
+        :type data:
+        :return: 嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                        one_result = [keyword, label, '0.5', start, end]
+        :rtype:
+        """
+        result = []
+        # one_result = [keyword, label, '0.5', start, end]
+        text_data = [d[0] for d in data]
+        test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, maxlen=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            ids = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+                ids.extend(batch_info['uids'])
+            id2tok = self.tasks_info[task_name]['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+            results = list(zip(predict_labels, scores, data))
+        return results
+
 
 def verify_data(data, task):
     """
@@ -1223,6 +1257,8 @@ def verify_data(data, task):
         else:
             msg = "传入的数据的长度格式不符合要求，要求传入的nest list是2或4的长度"
             return msg
+
+
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -1427,6 +1463,23 @@ def brand_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
+@app.route("/api/label_studio_pinpai_predict", methods=['POST'])
+def pinpainer_predict():
+    """
+    用于label studio的品牌的预测, aspects词是可能是多个，是用逗号隔开
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [(content,aspects),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspects),...,]
+    Returns: 返回格式是[one_result,one_result2,one_result3]
+     嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                    one_result = [keyword, label, '0.5', start, end]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    results = model.predict_pinpainer(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
 
 if __name__ == "__main__":
     model = TorchMTDNNModel()
