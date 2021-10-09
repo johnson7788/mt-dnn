@@ -27,6 +27,10 @@ logger = create_logger(
     log_file='mt_dnn_data_proc_{}.log'.format(MAX_SEQ_LEN))
 
 def feature_extractor(tokenizer, text_a, text_b=None, max_length=512, do_padding=False):
+    if tokenizer.do_lower_case:
+        text_a = text_a.lower()
+        if text_b:
+            text_b = text_b.lower()
     inputs = tokenizer(
         text_a,
         text_b,
@@ -313,7 +317,7 @@ def parse_args():
         description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--model', type=str, default='bert-base-uncased',
                         help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
-    parser.add_argument('--do_lower_case', action='store_true')
+    parser.add_argument('--do_lower_case', action='store_true', help='是否变成小写')
     parser.add_argument('--do_padding', action='store_true')
     parser.add_argument('--dataset', type=str, default='all',help='处理哪个数据集')
     parser.add_argument('--root_dir', type=str, default='data/canonical_data',help='规范后的数据的位置，处理后的输出目录也在这个目录下，根据处理的模型的名字命名')
@@ -328,7 +332,7 @@ def main(args):
     root = args.root_dir
     assert os.path.exists(root), f"路径{root}不存在"
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, do_lower_case=args.do_lower_case)
 
     mt_dnn_root = os.path.join(root, args.model)
     if not os.path.isdir(mt_dnn_root):

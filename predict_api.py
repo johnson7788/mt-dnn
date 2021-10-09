@@ -61,7 +61,7 @@ class SinglePredictDataset(Dataset):
                  max_seq_length=512,
                  max_predictions_per_seq=80
                  ):
-        data = self.build_data(data=data, tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab)
+        data = self.build_data(data=data, tokenizer=tokenizer, data_format=task_def.data_type, lab_dict=task_def.label_vocab, max_seq_len=max_seq_length)
         data = self.add_factor(data)
         self._data = data
         self._tokenizer = tokenizer
@@ -118,6 +118,8 @@ class SinglePredictDataset(Dataset):
         for idx, sample in enumerate(data):
             ids = sample['uid']
             premise = sample['premise']
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
             label = sample['label']
             input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, max_length=max_seq_len)
             features = {
@@ -137,6 +139,9 @@ class SinglePredictDataset(Dataset):
         for idx, sample in enumerate(data):
             premise = sample[0]
             hypothesis = sample[1]
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
+                hypothesis = hypothesis.lower()
             label = 0
             input_ids, input_mask, type_ids = self.feature_extractor(tokenizer, premise, text_b=hypothesis,
                                                                      max_length=max_seq_len)
@@ -182,6 +187,8 @@ class SinglePredictDataset(Dataset):
         feature_datas = []
         for idx, sample in enumerate(data):
             premise = sample['premise']
+            if tokenizer.do_lower_case:
+                premise = premise.lower()
             tokens = []
             labels = []
             for i, word in enumerate(premise):
@@ -315,6 +322,8 @@ class SinglePredictDataset(Dataset):
         sentence = item['text']
         pos_head = item['brand']['pos']
         pos_tail = item['attribute']['pos']
+        if tokenizer.do_lower_case:
+            sentence = sentence.lower()
 
         pos_min = pos_head
         pos_max = pos_tail
@@ -389,14 +398,15 @@ class TorchMTDNNModel(object):
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
         # absa 情感分析， dem8是8个维度的判断, purchase 购买意向, brand品牌功效关系判断
-        self.task_names = ['absa', 'dem8', 'purchase','brand']
+        self.task_names = ['absa', 'dem8', 'purchase','brand','nersentiment', 'pinpainer']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度
-        self.max_seq_len = 512
+        self.max_seq_len = 500
         # 最大的batch_size
         self.predict_batch_size = 64
         self.tokenize_model = 'bert-base-chinese'
+        self.do_lower_case = True
         # 训练好的模型的存放位置
         self.checkpoint = 'trained_model/absa_dem8.pt'
         self.type_to_prefix = {
@@ -454,7 +464,7 @@ class TorchMTDNNModel(object):
         self.config['adv_train'] = False
         del self.state_dict['optimizer']
         # 初始化tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenize_model)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.tokenize_model, do_lower_case=self.do_lower_case)
         # 初始化模型
         self.model = MTDNNModel(self.config, device=self.device, state_dict=self.state_dict)
         # encoder的类型 EncoderModelType.BERT
@@ -1113,6 +1123,140 @@ class TorchMTDNNModel(object):
             every_result = result[start_idx:end_idx]
             final_res.append(every_result)
         return final_res
+    def predict_pinpainer(self, data, max_seq_len=500, task_name='pinpainer'):
+        """
+        品牌的ner识别, 接收来自label-studio的数据, 只返回是品牌的那些词
+        :param data:[[text, keywords_text]]
+        :type data:
+        :return: 嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                        one_result = [keyword, label, '0.5', start, end]
+        :rtype:
+        """
+        label2name = {
+            "B-PIN": "品牌",
+            "I-PIN": "品牌",
+        }
+        results = []
+        text_data = [{"premise":d[0],"label":[0] * len(d[0])} for d in data]
+        test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, maxlen=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            ids = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.append(score)  #score还有一些问题，暂时不用了
+                ids.extend(batch_info['uids'])
+        id2tok = self.tasks_info[task_name]['id2tok']
+        predict_labels = [[id2tok[tokp] for tokp in p] for p in predictions ]
+        # 对预测的每个token的label进行筛选
+        print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        data_tokens = []
+        tok2txt_locations = []
+        # text 转变成tokens
+        for idx, sample in enumerate(data):
+            premise = sample[0]
+            tokens = []
+            token2text_loc = {}
+            tokens_loc = 0
+            for idx, word in enumerate(premise):
+                # word是每个单词, subwords是子词
+                subwords = self.tokenizer.tokenize(word)
+                tokens.extend(subwords)
+                # text的位置对应着起始和结束位置
+                for i in range(tokens_loc,tokens_loc + len(subwords)):
+                    # token的位置映射到原txt的位置
+                    token2text_loc[tokens_loc] = idx
+                tokens_loc = tokens_loc + len(subwords)
+            if len(premise) > max_seq_len - 2:
+                tokens = tokens[:max_seq_len - 2]
+            data_tokens.append(tokens)
+            tok2txt_locations.append(token2text_loc)
+        for plabel, tokens, t2tloc, sdata in zip(predict_labels, data_tokens, tok2txt_locations, data):
+            text = sdata[0]
+            # 去掉第一个和最后一个token的预测结果，即去掉CLS和SEP
+            token_label = plabel[1:-1]
+            # 不相等也是有可能的，因为进行了截断或填充
+            # assert len(text) == len(token_label), "预测的token的label长度和text的长度不等"
+            pinpai_words = ""
+            #保存这个品牌词的位置信息
+            pinpai_words_idx = []
+            # 保存这个句子所有的品牌词和品牌词的起始位置, 这是对应的tokenize后的内容，我们要找到原text中的内容，这里可能有UNK的出现
+            p_words = []
+            # 这是token的位置
+            p_words_start_end = []
+            # 对应到原文txt之后的位置
+            text_words_start_end = []
+            # 对应原txt之后的品牌词的内容，这里肯定不会出现UNK了
+            text_pinpai_words = []
+            for idx in range(len(token_label)):
+                # 单词的位置应该是tokenize后的结果，
+                word = tokens[idx]
+                if token_label[idx] == "B-PIN":
+                    if pinpai_words:
+                        #说明上一个词也是品牌词，说明这是连续的2个品牌词，那么这个信息存一下
+                        p_words.append(pinpai_words)
+                        token_start = pinpai_words_idx[0]
+                        token_end = pinpai_words_idx[-1]+1
+                        text_start = t2tloc[token_start]
+                        text_end = t2tloc[token_end]
+                        p_words_start_end.append([token_start,token_end])
+                        text_words_start_end.append([text_start,text_end])
+                        text_pinpai_word = text[text_start:text_end]
+                        text_pinpai_words.append(text_pinpai_word)
+                        # 重置
+                        pinpai_words = ""
+                        pinpai_words_idx = []
+                    #发现品牌词的开头单词
+                    pinpai_words += word
+                    pinpai_words_idx.append(idx)
+                elif token_label[idx] == "I-PIN":
+                    # 如果没有预测到B-PIN开头，直接是I-PIN，那么这个也算一个单词
+                    pinpai_words += word
+                    pinpai_words_idx.append(idx)
+                else:
+                    if pinpai_words:
+                        # 说明一个品牌词结束了，改保存了
+                        p_words.append(pinpai_words)
+                        token_start = pinpai_words_idx[0]
+                        token_end = pinpai_words_idx[-1]+1
+                        text_start = t2tloc[token_start]
+                        text_end = t2tloc[token_end]
+                        p_words_start_end.append([token_start,token_end])
+                        text_words_start_end.append([text_start,text_end])
+                        text_pinpai_word = text[text_start:text_end]
+                        text_pinpai_words.append(text_pinpai_word)
+                        # 重置
+                        pinpai_words = ""
+                        pinpai_words_idx = []
+            if pinpai_words:
+                # 末尾可能的是品牌词的情况
+                p_words.append(pinpai_words)
+                token_start = pinpai_words_idx[0]
+                token_end = pinpai_words_idx[-1] + 1
+                text_start = t2tloc[token_start]
+                text_end = t2tloc[token_end]
+                p_words_start_end.append([token_start, token_end])
+                text_words_start_end.append([text_start, text_end])
+                text_pinpai_word = text[text_start:text_end]
+                text_pinpai_words.append(text_pinpai_word)
+            # 根据p_words_start_end（识别到的品牌词的token位置信息） 和t2tloc（token到text的位置映射）映射品牌词到原text中，修改p_words_start_end, 找出对应原文的正确的位置信息
+            # 对每条数据的预测结果进行整理，返回label-studio需要的格式
+            # one_result = [keyword, label, '0.5', start, end]
+            result = []
+            for pword, pstart_end in zip(text_pinpai_words, text_words_start_end):
+                one_result = [pword, "品牌", '0.5', pstart_end[0], pstart_end[1]]
+                result.append(one_result)
+            results.append(result)
+        return results
+
 
 def verify_data(data, task):
     """
@@ -1223,6 +1367,8 @@ def verify_data(data, task):
         else:
             msg = "传入的数据的长度格式不符合要求，要求传入的nest list是2或4的长度"
             return msg
+
+
 
 @app.route("/api/absa_predict", methods=['POST'])
 def absa_predict():
@@ -1427,6 +1573,23 @@ def brand_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
+@app.route("/api/label_studio_pinpai_predict", methods=['POST'])
+def pinpainer_predict():
+    """
+    用于label studio的品牌的预测, aspects词是可能是多个，是用逗号隔开
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [(content,aspects),...,]
+        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspects),...,]
+    Returns: 返回格式是[one_result,one_result2,one_result3]
+     嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                    one_result = [keyword, label, '0.5', start, end]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    results = model.predict_pinpainer(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
 
 if __name__ == "__main__":
     model = TorchMTDNNModel()
