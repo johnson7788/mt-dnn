@@ -1159,19 +1159,28 @@ class TorchMTDNNModel(object):
         # 对预测的每个token的label进行筛选
         print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
         data_tokens = []
+        tok2txt_locations = []
         # text 转变成tokens
         for idx, sample in enumerate(data):
             premise = sample[0]
             tokens = []
-            for i, word in enumerate(premise):
+            token2text_loc = {}
+            tokens_loc = 0
+            for idx, word in enumerate(premise):
+                # word是每个单词, subwords是子词
                 subwords = self.tokenizer.tokenize(word)
                 tokens.extend(subwords)
+                # text的位置对应着起始和结束位置
+                for i in range(tokens_loc,tokens_loc + len(subwords)):
+                    # token的位置映射到原txt的位置
+                    token2text_loc[tokens_loc] = idx
+                tokens_loc = tokens_loc + len(subwords)
             if len(premise) > max_seq_len - 2:
                 tokens = tokens[:max_seq_len - 2]
             data_tokens.append(tokens)
-        for plabel, tokens in zip(predict_labels, data_tokens):
-            # 对每条数据的预测结果进行整理，返回label-studio需要的格式
-            # one_result = [keyword, label, '0.5', start, end]
+            tok2txt_locations.append(token2text_loc)
+        for plabel, tokens, t2tloc, sdata in zip(predict_labels, data_tokens, tok2txt_locations, data):
+            text = sdata[0]
             # 去掉第一个和最后一个token的预测结果，即去掉CLS和SEP
             token_label = plabel[1:-1]
             # 不相等也是有可能的，因为进行了截断或填充
@@ -1179,9 +1188,14 @@ class TorchMTDNNModel(object):
             pinpai_words = ""
             #保存这个品牌词的位置信息
             pinpai_words_idx = []
-            # 保存这个句子所有的品牌词和品牌词的起始位置
+            # 保存这个句子所有的品牌词和品牌词的起始位置, 这是对应的tokenize后的内容，我们要找到原text中的内容，这里可能有UNK的出现
             p_words = []
+            # 这是token的位置
             p_words_start_end = []
+            # 对应到原文txt之后的位置
+            text_words_start_end = []
+            # 对应原txt之后的品牌词的内容，这里肯定不会出现UNK了
+            text_pinpai_words = []
             for idx in range(len(token_label)):
                 # 单词的位置应该是tokenize后的结果，
                 word = tokens[idx]
@@ -1189,11 +1203,14 @@ class TorchMTDNNModel(object):
                     if pinpai_words:
                         #说明上一个词也是品牌词，说明这是连续的2个品牌词，那么这个信息存一下
                         p_words.append(pinpai_words)
-                        if len(pinpai_words_idx) == 1:
-                            # 如果连续2个B-PIN，那么这个预测有一些问题，
-                            p_words_start_end.append([pinpai_words_idx[0], pinpai_words_idx[0]+1])
-                        else:
-                            p_words_start_end.append([pinpai_words_idx[0],pinpai_words_idx[-1]])
+                        token_start = pinpai_words_idx[0]
+                        token_end = pinpai_words_idx[-1]+1
+                        text_start = t2tloc[token_start]
+                        text_end = t2tloc[token_end]
+                        p_words_start_end.append([token_start,token_end])
+                        text_words_start_end.append([text_start,text_end])
+                        text_pinpai_word = text[text_start:text_end]
+                        text_pinpai_words.append(text_pinpai_word)
                         # 重置
                         pinpai_words = ""
                         pinpai_words_idx = []
@@ -1208,15 +1225,36 @@ class TorchMTDNNModel(object):
                     if pinpai_words:
                         # 说明一个品牌词结束了，改保存了
                         p_words.append(pinpai_words)
-                        if len(pinpai_words_idx) == 1:
-                            # 如果连续2个B-PIN，那么这个预测有一些问题，
-                            p_words_start_end.append([pinpai_words_idx[0], pinpai_words_idx[0]+1])
-                        else:
-                            p_words_start_end.append([pinpai_words_idx[0],pinpai_words_idx[-1]])
+                        token_start = pinpai_words_idx[0]
+                        token_end = pinpai_words_idx[-1]+1
+                        text_start = t2tloc[token_start]
+                        text_end = t2tloc[token_end]
+                        p_words_start_end.append([token_start,token_end])
+                        text_words_start_end.append([text_start,text_end])
+                        text_pinpai_word = text[text_start:text_end]
+                        text_pinpai_words.append(text_pinpai_word)
                         # 重置
                         pinpai_words = ""
                         pinpai_words_idx = []
-            results.append([p_words, p_words_start_end])
+            if pinpai_words:
+                # 末尾可能的是品牌词的情况
+                p_words.append(pinpai_words)
+                token_start = pinpai_words_idx[0]
+                token_end = pinpai_words_idx[-1] + 1
+                text_start = t2tloc[token_start]
+                text_end = t2tloc[token_end]
+                p_words_start_end.append([token_start, token_end])
+                text_words_start_end.append([text_start, text_end])
+                text_pinpai_word = text[text_start:text_end]
+                text_pinpai_words.append(text_pinpai_word)
+            # 根据p_words_start_end（识别到的品牌词的token位置信息） 和t2tloc（token到text的位置映射）映射品牌词到原text中，修改p_words_start_end, 找出对应原文的正确的位置信息
+            # 对每条数据的预测结果进行整理，返回label-studio需要的格式
+            # one_result = [keyword, label, '0.5', start, end]
+            result = []
+            for pword, pstart_end in zip(text_pinpai_words, text_words_start_end):
+                one_result = [pword, "品牌", '0.5', pstart_end[0], pstart_end[1]]
+                result.append(one_result)
+            results.append(result)
         return results
 
 
