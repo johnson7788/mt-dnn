@@ -62,11 +62,11 @@ def model_config(parser):
     parser.add_argument('--bin_grow_ratio', type=int, default=0.5, help='后面的bin的长度会变短，bin的长度根据batch_size和bin的个数和这个ratio有关')
 
     # 分布式 training
-    parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
-    parser.add_argument("--world_size", type=int, default=1, help="For distributed training: world size")
-    parser.add_argument("--master_addr", type=str, default="localhost")
-    parser.add_argument("--master_port", type=str, default="6600")
-    parser.add_argument("--backend", type=str, default="nccl")
+    parser.add_argument("--local_rank", type=int, default=-1, help="本地进程的id号,local_rank")
+    parser.add_argument("--world_size", type=int, default=1, help="分布式运行所有节点上运行的应用进程总数")
+    parser.add_argument("--master_addr", type=str, default="localhost", help="主节点的ip地址")
+    parser.add_argument("--master_port", type=str, default="6600", help="主节点的端口是多少")
+    parser.add_argument("--backend", type=str, default="nccl", help="通信机制，默认是nccl方式")
     return parser
 
 

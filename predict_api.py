@@ -406,7 +406,7 @@ class TorchMTDNNModel(object):
         # 最大的batch_size
         self.predict_batch_size = 64
         self.tokenize_model = 'bert-base-chinese'
-        self.do_lower_case = True
+        self.do_lower_case = False
         # 训练好的模型的存放位置
         self.checkpoint = 'trained_model/absa_dem8.pt'
         self.type_to_prefix = {

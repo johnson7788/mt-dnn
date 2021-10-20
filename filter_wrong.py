@@ -10,7 +10,7 @@ import os
 
 import pandas as pd
 
-from experiments.myexample.mydata_prepro import do_prepro, absa_source_file, dem8_source_file, purchase_source_file
+from experiments.myexample.mydata_prepro import do_prepro, data_configs
 from predict import do_predict
 import collections
 import numpy as np
@@ -60,15 +60,12 @@ def train_and_filter(seed, task ,wrong_path):
         # 根据同一份源数据，不同的随机数种子，产生不同的训练，评估，测试数据集
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
         data_ids = do_prepro(root='data_my', use_pkl=True, seed=sd)
-        # 注意这里的data_id是对应的源数据的索引，是全局唯一的
-        (absa_train_data_id, absa_dev_data_id, absa_test_data_id) = data_ids['absa']
-        (dem8_train_data_id, dem8_dev_data_id, dem8_test_data_id) = data_ids['dem8']
-        (purchase_train_data_id, purchase_dev_data_id, purchase_test_data_id) = data_ids['purchase']
         # 第二步，源数据变token
         code = os.system(command="/home/wac/johnson/anaconda3/envs/py38/bin/python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --do_lower_case")
         assert code == 0, "数据处理不成功，请检查"
         # 第三步，训练模型
         model_output_dir = f"checkpoints/mtdnn_seed_{sd}"
+        train_datasets = ','.join(tasks)
         train_options_list = {
             'data_dir': "--data_dir data_my/canonical_data/bert-base-chinese",  # 数据tokenize后的路径
             'init_checkpoint': "--init_checkpoint mt_dnn_models/bert_model_base_chinese.pt",  # base模型
@@ -79,8 +76,8 @@ def train_and_filter(seed, task ,wrong_path):
             'answer_opt': "--answer_opt 1 ",  # 可选0,1，代表是否使用SANClassifier分类头还是普通的线性分类头,1表示使用SANClassifier, 0是普通线性映射
             'optimizer': "--optimizer adamax ",
             'epochs': "--epochs 5",
-            'train_datasets': "--train_datasets absa,dem8,purchase,brand",
-            'test_datasets': "--test_datasets absa,dem8,purchase,brand",
+            'train_datasets': f"--train_datasets {train_datasets}",
+            'test_datasets': f"--test_datasets {train_datasets}",
             'grad_clipping': "--grad_clipping 0 ",
             'global_grad_clipping': "--global_grad_clipping 1 ",
             'learning_rate': "--learning_rate 5e-5",
@@ -92,26 +89,12 @@ def train_and_filter(seed, task ,wrong_path):
         assert code == 0, "训练模型失败，请检查"
         # 训练完成，使用训练完成的最后的epoch模型进行预测
         model_path = os.path.join(model_output_dir, "model_final.pt")
-        tasks2id = {
-            "absa": 0,
-            "dem8": 1,
-            "purchase": 2
-        }
+        tasks2id = {t:idx for idx, t in enumerate(tasks)}
         records['model_path'] = model_path
+        # 注意这里的data_id是对应的源数据的索引，是全局唯一的
         for task in tasks:
             task_record = {}
-            if task == "absa":
-                task_record["train_data_id"] = absa_train_data_id
-                task_record["dev_data_id"] = absa_dev_data_id
-                task_record["test_data_id"] = absa_test_data_id
-            elif task == "dem8":
-                task_record["train_data_id"] = dem8_train_data_id
-                task_record["dev_data_id"] = dem8_dev_data_id
-                task_record["test_data_id"] = dem8_test_data_id
-            else:
-                task_record["train_data_id"] = purchase_train_data_id
-                task_record["dev_data_id"] = purchase_dev_data_id
-                task_record["test_data_id"] = purchase_test_data_id
+            task_record["train_data_id"], task_record["dev_data_id"], task_record["test_data_id"] = data_ids[task]
             task_id = tasks2id[task]
             # 对训练，测试，开发数据集都进行预测一下
             # 对于每个任务都进行测试
@@ -129,41 +112,43 @@ def train_and_filter(seed, task ,wrong_path):
         # 保存一次实验的seed结果
         with open(wrong_sample_record, 'w') as f:
             json.dump(records,f)
-def do_analysis(analysis_path, analysis_tasks):
+def do_analysis(analysis_path, analysis_tasks, task):
     """
     分析badcase
     :param analysis_tasks 绘哪个图
     :return:
     :rtype:
     """
-    tasks = ["absa", "dem8", "purchase"]
+    all_tasks = ["absa","dem8","purchase"]
+    if task == "all":
+        tasks = all_tasks
+    else:
+        assert task in all_tasks, "给定任务不在我们预设的任务中，请检查"
+        tasks = [task]
     assert os.path.exists(analysis_path), f"给定的分析的路径不存在:{analysis_path}，请检查目录是否正确"
     files = os.listdir(analysis_path)
-    assert "source_data" in files, "原始数据目录不在里面，请检查"
-    absa_src_data = os.path.join(analysis_path, "source_data", "absa.pkl")
-    dem8_src_data = os.path.join(analysis_path, "source_data", "dem8.pkl")
-    purchase_src_data = os.path.join(analysis_path, "source_data", "purchase.pkl")
-    assert os.path.exists(absa_src_data), "absa的原始数据文件不存在，请检查"
-    assert os.path.exists(dem8_src_data), "dem8的原始数据文件不存在，请检查"
-    assert os.path.exists(purchase_src_data), "purchase的原始数据文件不存在，请检查"
     # 每个随机数种子训练模型后的结果
     seed_pkl = [f for f in files if f.endswith('.pkl')]
     # 读取每个运行结果
     seeds_result = []
     for sd_file in seed_pkl:
-        #读取每个记录的pkl文件
+        # 读取每个记录的pkl文件
         sd_file_path = os.path.join(analysis_path, sd_file)
         with open(sd_file_path, 'rb') as f:
-            #单次的运行结果
+            # 单次的运行结果
             sd_res = json.load(f)
             # 预处理下sd_res，为了以后的绘图更方便，主要统计下预测错误的样本，bad_case的基本信息
         seeds_result.append(sd_res)
-    if "accuracy" in analysis_tasks or 'all' in analysis_tasks:
-        # 准确率的绘制
-        analysis_acc(seeds_result)
-    #样本训练集，开发集，测试集数量绘制
-    if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
-        analysis_sample_num(seeds_result)
+    assert "source_data" in files, "原始数据目录不在里面，请检查"
+    for one_task in tasks:
+        pkl_data = os.path.join(analysis_path, "source_data", f"{one_task}.pkl")
+        assert os.path.exists(pkl_data), f"{one_task}的原始数据文件不存在，请检查"
+        if "accuracy" in analysis_tasks or 'all' in analysis_tasks:
+            # 准确率的绘制
+            analysis_acc(seeds_result, one_task)
+        #样本训练集，开发集，测试集数量绘制
+        if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
+            analysis_sample_num(seeds_result, one_task)
     if "badnum" in analysis_tasks or 'all' in analysis_tasks:
         # 只画出每次seed的错误的样本数量
         analysis_bad_sample_num(seeds_result)
@@ -492,7 +477,7 @@ def analysis_bad_sample_num(seeds_result):
     plot_bar(title="情感任务absa的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
     plot_bar(title="属性判断dem8的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
     plot_bar(title="购买意向purchase的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
-def analysis_sample_num(seeds_result):
+def analysis_sample_num(seeds_result, task_name):
     """
     读取每个seed种子的结果，绘制样本数量，样本数量基本是一样的
     :param seeds_result:
@@ -501,58 +486,33 @@ def analysis_sample_num(seeds_result):
     :rtype:
     """
     plot_seeds = []
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
+    acc_data = []
     for sd_res in seeds_result:
         seed = sd_res['seed']
         plot_seeds.append(seed)
-        absa_train_acc = len(sd_res['absa']['train_data_id'])
-        absa_dev_acc = len(sd_res['absa']['dev_data_id'])
-        absa_test_acc = len(sd_res['absa']['test_data_id'])
-        absa_plot_acc_data.append([absa_train_acc,absa_dev_acc,absa_test_acc])
-        # dem8的准确率收集
-        dem8_train_acc = len(sd_res['dem8']['train_data_id'])
-        dem8_dev_acc = len(sd_res['dem8']['dev_data_id'])
-        dem8_test_acc = len(sd_res['dem8']['test_data_id'])
-        dem8_plot_acc_data.append([dem8_train_acc,dem8_dev_acc,dem8_test_acc])
-        # purchase
-        purchase_train_acc = len(sd_res['purchase']['train_data_id'])
-        purchase_dev_acc = len(sd_res['purchase']['dev_data_id'])
-        purchase_test_acc = len(sd_res['purchase']['test_data_id'])
-        purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
-    plot_bar(title="情感任务absa的总样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
-    plot_bar(title="属性判断dem8的总样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
-    plot_bar(title="购买意向purchase的总样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
-def analysis_acc(seeds_result):
+        train_acc = len(sd_res[task_name]['train_data_id'])
+        dev_acc = len(sd_res[task_name]['dev_data_id'])
+        test_acc = len(sd_res[task_name]['test_data_id'])
+        acc_data.append([train_acc,dev_acc,test_acc])
+    plot_bar(title=f"任务的{task_name}总样本数",yname="样本数",seeds=plot_seeds, yvalue=acc_data)
+def analysis_acc(seeds_result, task_name):
     """
     读取每个seed种子的结果，绘图准确率
     :param seeds_result:
     :type seeds_result:
+    :param task_name: 一个任务的名字
     :return:
     :rtype:
     """
     plot_seeds = []
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
+    acc_data = []
     for sd_res in seeds_result:
         seed = sd_res['seed']
         plot_seeds.append(seed)
-        absa_train_acc = sd_res['absa']['train_metrics']['ACC']
-        absa_dev_acc = sd_res['absa']['dev_metrics']['ACC']
-        absa_test_acc = sd_res['absa']['test_metrics']['ACC']
-        absa_plot_acc_data.append([absa_train_acc,absa_dev_acc,absa_test_acc])
-        # dem8的准确率收集
-        dem8_train_acc = sd_res['dem8']['train_metrics']['ACC']
-        dem8_dev_acc = sd_res['dem8']['dev_metrics']['ACC']
-        dem8_test_acc = sd_res['dem8']['test_metrics']['ACC']
-        dem8_plot_acc_data.append([dem8_train_acc,dem8_dev_acc,dem8_test_acc])
-        # purchase
-        purchase_train_acc = sd_res['purchase']['train_metrics']['ACC']
-        purchase_dev_acc = sd_res['purchase']['dev_metrics']['ACC']
-        purchase_test_acc = sd_res['purchase']['test_metrics']['ACC']
-        purchase_plot_acc_data.append([purchase_train_acc, purchase_dev_acc, purchase_test_acc])
+        train_acc = sd_res[task_name]['train_metrics']['ACC']
+        dev_acc = sd_res[task_name]['dev_metrics']['ACC']
+        test_acc = sd_res[task_name]['test_metrics']['ACC']
+        acc_data.append([train_acc,dev_acc,test_acc])
     #平均的准确率
     def average_acc(acc_data):
         # 加一个平均值，在末尾
@@ -561,17 +521,11 @@ def analysis_acc(seeds_result):
         avg_test = sum([i[2] for i in acc_data])/len(acc_data)
         acc_data.append([avg_train,avg_dev,avg_test])
         return acc_data
-    absa_plot_acc_data = average_acc(absa_plot_acc_data)
-    dem8_plot_acc_data = average_acc(dem8_plot_acc_data)
-    purchase_plot_acc_data = average_acc(purchase_plot_acc_data)
+    plot_acc_data = average_acc(acc_data)
     # 999代表平均值
     plot_seeds.append(999)
-    plot_bar(title="情感任务absa的准确率",yname="准确率",seeds=plot_seeds, yvalue=absa_plot_acc_data, ylimit=[0, 100])
-    plot_bar(title="属性判断dem8的准确率",yname="准确率",seeds=plot_seeds, yvalue=dem8_plot_acc_data,ylimit=[0, 100])
-    plot_bar(title="购买意向purchase的准确率",yname="准确率",seeds=plot_seeds, yvalue=purchase_plot_acc_data,ylimit=[0, 100])
-    print(f"情感任务absa的准确率: {absa_plot_acc_data}")
-    print(f"属性判断dem8的准确率: {dem8_plot_acc_data}")
-    print(f"购买意向purchase的准确率: {purchase_plot_acc_data}")
+    plot_bar(title=f"任务{task_name}的准确率",yname="准确率",seeds=plot_seeds, plot_acc_data=plot_acc_data, ylimit=[0, 100])
+    print(f"任务{task_name}的准确率: {plot_acc_data}")
 def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_group_labels=["训练集","开发集","测试集"]):
     """
     绘制准确率的柱状图
@@ -628,4 +582,4 @@ if __name__ == '__main__':
     else:
         #分析
         plot_tasks = args.analysis_tasks.split(',')
-        do_analysis(analysis_path=args.analysis_path, analysis_tasks=plot_tasks)
+        do_analysis(analysis_path=args.analysis_path, analysis_tasks=plot_tasks, task=args.task)

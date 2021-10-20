@@ -393,7 +393,9 @@ def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
             label_name = label['labels']
             keyword_name = label['text']
             #校验下品牌的名字对应的位置在原文中是存在，并且正确的
-            assert keyword_name == text[start:end], "原文中对应的开始和结束位置的词和标签给定的词不一致，请检查"
+            if keyword_name != text[start:end]:
+                print(f"原文中对应的开始和结束位置的词和标签给定的词不一致，请检查: {text}: label是{label_name}, keyword是{keyword_name}, 位置是{start}和{end}")
+                continue
             if label_name in labels_dict:
                 # 只需要标注为 "品牌的字段的内容", 这里即 "PIN"，
                 token_label = labels_dict[label_name]
