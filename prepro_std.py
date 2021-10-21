@@ -319,7 +319,7 @@ def parse_args():
                         help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
     parser.add_argument('--do_lower_case', action='store_true', help='是否变成小写')
     parser.add_argument('--do_padding', action='store_true')
-    parser.add_argument('--dataset', type=str, default='all',help='处理哪个数据集')
+    parser.add_argument('--dataset', type=str, default='all',help='默认处理哪个数据集，all代表所有, 或者部分数据集，例如absa,dem8这样用逗号分割的参数')
     parser.add_argument('--root_dir', type=str, default='data/canonical_data',help='规范后的数据的位置，处理后的输出目录也在这个目录下，根据处理的模型的名字命名')
     parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml")
 
@@ -339,10 +339,10 @@ def main(args):
         os.makedirs(mt_dnn_root)
 
     task_defs = TaskDefs(args.task_def)
-
+    datasets = args.dataset.split(',')
     for task in task_defs.get_task_names():
         task_def = task_defs.get_task_def(task)
-        if args.dataset== 'all' or task == args.dataset:
+        if 'all' in datasets or task in datasets:
             logger.info("开始tokenize任务: %s" % task)
             for split_name in task_def.split_names:
                 file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
@@ -358,7 +358,6 @@ def main(args):
                     tokenizer,
                     task_def.data_type,
                     lab_dict=task_def.label_vocab)
-
 
 if __name__ == '__main__':
     args = parse_args()

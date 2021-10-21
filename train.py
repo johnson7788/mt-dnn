@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import random
+import time
 from datetime import datetime
 from pprint import pprint
 import numpy as np
@@ -296,6 +297,7 @@ def print_message(logger, message, level=0):
 
 def main():
     # set up dist
+    start_time = time.time()
     if args.local_rank > -1:
         device = initialize_distributed(args)
     elif torch.cuda.is_available():
@@ -528,6 +530,9 @@ def main():
         model.save(model_file)
     if args.tensorboard:
         tensorboard.close()
+    end_time = time.time()
+    train_cost_minutes = int((start_time - end_time)/60)
+    print_message(logger, f"训练完成，总计耗时{train_cost_minutes}分钟")
 
 if __name__ == '__main__':
     main()

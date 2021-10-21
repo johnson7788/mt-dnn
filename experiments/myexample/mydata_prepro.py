@@ -572,7 +572,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--seed', type=int, default=13)
     parser.add_argument('--root_dir', type=str, default='data_my',help='数据集的保存路径')
-    parser.add_argument('--dataset', type=str, default='all',help='默认处理哪个数据集，all代表所有')
+    parser.add_argument('--dataset', type=str, default='all',help='默认处理哪个数据集，all代表所有, 或者部分数据集，例如absa,dem8这样用逗号分割的参数')
     parser.add_argument('--save_source_pkl', action="store_true", help='把原始数据导出到本地的data_my/canonical_data/source_data文件夹')
     parser.add_argument('--use_pkl', action="store_true", help='使用本地的pkl缓存的原始数据，不使用label-studio产生的数据')
     args = parser.parse_args()
@@ -601,8 +601,10 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
     print(f"将要保存到:{canonical_data_root}, 是否使用缓存的文件:{use_pkl}, 使用的随机数种子是:{seed}")
     # 每个任务的数据的ids
     data_ids = {}
+    datasets = dataset.split(',')
     for task_name, data_cf in data_configs.items():
-        if dataset == 'all' or dataset == task_name:
+        if all in datasets or task_name in datasets :
+            print(f"开始处理任务{task_name}")
             ##############处理数据##############
             data_format = data_cf['DataFormat']
             do_truncate = data_cf['do_truncate']
@@ -610,21 +612,25 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
             only_addidx = data_cf.get('only_addidx')
             #保存成tsv文件
             data = load_absa_dem8(task_name=task_name, use_pickle=use_pkl, do_truncate=do_truncate)
-            absa_train_data, absa_dev_data, absa_test_data, absa_train_data_id, absa_dev_data_id, absa_test_data_id = split_save_data(data=data,random_seed=seed, todict=todict,only_addidx=only_addidx)
+            train_data, dev_data, test_data, train_data_id, dev_data_id, test_data_id = split_save_data(data=data,random_seed=seed, todict=todict,only_addidx=only_addidx)
             #保存文件
-            absa_train_fout = os.path.join(canonical_data_root, f'{task_name}_train.tsv')
-            absa_dev_fout = os.path.join(canonical_data_root, f'{task_name}_dev.tsv')
-            absa_test_fout = os.path.join(canonical_data_root, f'{task_name}_test.tsv')
-            dump_rows(absa_train_data, absa_train_fout, data_format)
-            dump_rows(absa_dev_data, absa_dev_fout, data_format)
-            dump_rows(absa_test_data, absa_test_fout, data_format)
-            logger.info(f'初步处理absa数据完成, 保存规范后的数据到{absa_train_fout}, {absa_dev_fout}, {absa_test_fout}')
+            train_fout = os.path.join(canonical_data_root, f'{task_name}_train.tsv')
+            dev_fout = os.path.join(canonical_data_root, f'{task_name}_dev.tsv')
+            test_fout = os.path.join(canonical_data_root, f'{task_name}_test.tsv')
+            dump_rows(train_data, train_fout, data_format)
+            dump_rows(dev_data, dev_fout, data_format)
+            dump_rows(test_data, test_fout, data_format)
+            logger.info(f'初步处理{task_name}数据完成, 保存规范后的数据到{train_fout}, {dev_fout}, {test_fout}')
             print()
-            data_ids[task_name] = (absa_train_data_id, absa_dev_data_id, absa_test_data_id)
-    if dataset == 'all':
+            data_ids[task_name] = (train_data_id, dev_data_id, test_data_id)
+    if 'all' in datasets:
         return data_ids
-    else:
+    elif len(datasets) == 1:
+        # 传入了一个任务名字参数，那么只返回一个即可
         return data_ids[dataset]
+    else:
+        # 多个任务的，情况，返回所有
+        return data_ids
 
 if __name__ == '__main__':
     args = parse_args()
