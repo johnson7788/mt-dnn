@@ -531,7 +531,7 @@ def main():
     if args.tensorboard:
         tensorboard.close()
     end_time = time.time()
-    train_cost_minutes = int((start_time - end_time)/60)
+    train_cost_minutes = int((end_time - start_time)/60)
     print_message(logger, f"训练完成，总计耗时{train_cost_minutes}分钟")
 
 if __name__ == '__main__':

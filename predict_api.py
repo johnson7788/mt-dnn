@@ -609,7 +609,7 @@ class TorchMTDNNModel(object):
                 content, title, aspect = one_data[0], one_data[1], one_data[2]
                 title_content = title + content
                 title_content = title_content.lower()
-                iter = re.finditer(aspect, title_content)
+                iter = re.finditer(re.escape(aspect), title_content)
                 for m in iter:
                     aspect_start, aspect_end = m.span()
                     new_content = self.aspect_truncate(title_content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
@@ -620,6 +620,8 @@ class TorchMTDNNModel(object):
                         break
                     else:
                         keywords_index[idx] += 1
+                else:
+                    print(f"注意，未通过关键词匹配到数据{one_data}")
             elif len(one_data) == 5:
                 content, title, aspect, aspect_start, aspect_end = one_data
                 # 拼接title的内容
@@ -1121,6 +1123,7 @@ class TorchMTDNNModel(object):
         for cnt in aspect_count:
             end_idx = start_idx + cnt
             every_result = result[start_idx:end_idx]
+            start_idx = end_idx
             final_res.append(every_result)
         return final_res
     def predict_pinpainer(self, data, max_seq_len=500, task_name='pinpainer'):
