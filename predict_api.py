@@ -1001,7 +1001,7 @@ class TorchMTDNNModel(object):
                         t_end = t_start + t_length
                         assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
                         assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
-                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                        # assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
                 else:
                     # 实体词h在后，t在前, 尚未修改, xx|xxx entity2 xxx|xx   +  xxx|xx entity1 xxxx|x, 其中|表示被截断的标记
                     if h_end - t_start > max_length:
@@ -1020,7 +1020,7 @@ class TorchMTDNNModel(object):
                         t_end = t_start + t_length
                         assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
                         assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
-                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                        # assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
                     else:
                         # 在2层分别剪断, 计算下2层分别可以保存的长度, xx|xxx entity2 xxxxx entity1 xxx|xx, |表示被截断
                         can_keep_length = max_length - (h_start - t_end)
@@ -1042,7 +1042,7 @@ class TorchMTDNNModel(object):
                         t_end = t_start + t_length
                         assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
                         assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
-                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                        # assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
                 one['text'] = newtext
                 one['brand']['pos'][0] = h_start
                 one['brand']['pos'][1] = h_end
