@@ -981,7 +981,7 @@ class TorchMTDNNModel(object):
                         t_end = t_start + t_length
                         assert newtext[h_start:h_end] == h_entity, "截断后的实体位置信息不对"
                         assert newtext[t_start:t_end] == t_entity, "截断后的实体位置信息不对"
-                        assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
+                        # assert len(newtext) <= max_seq_len, f"最大长度截断后过长{len(newtext)}"
                     else:
                         # 在2侧分别剪断, 计算下2侧分别可以保存的长度, 形式是: xx|xxx entity1 xxxxx entity2 xxx|xx, |表示被截断
                         can_keep_length = max_length - (t_end - h_start)
@@ -1330,6 +1330,8 @@ def verify_data(data, task):
                 print(f"第{idx}条数据传入的数据的关键字可能是不在文本或标题中，变成小写后重试")
                 if keyword.lower() not in content.lower():
                     return f"第{idx}条数据传入的数据的关键字不在文本和标题中，请检查"
+            if keyword == "":
+                return f"第{idx}条数据传入的数据的关键字为空，请检查"
     elif task == "purchase_single":
         #校验购买意向， 数据格式应该是类似
         #         data = {
