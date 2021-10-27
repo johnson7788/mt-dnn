@@ -19,12 +19,14 @@ import matplotlib as mpl
 import pickle
 mpl.rcParams['font.family'] = ['SimHei']
 mpl.rcParams['axes.unicode_minus'] = False
+all_tasks = ["absa", "dem8", "purchase","brand","nersentiment","pinpainer"]
+
 
 def got_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
     parser.add_argument("-d","--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
-    parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有')
+    parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有，或者单独的task')
     parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/0818", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
 
     #分析badcase的参数
@@ -41,7 +43,6 @@ def train_and_filter(seed, task ,wrong_path):
     # 数字格式的随机数种子
     seeds = list(map(int, seeds))
     #对任务进行过滤
-    all_tasks = ["absa","dem8","purchase"]
     if task == "all":
         tasks = all_tasks
     else:
@@ -119,7 +120,6 @@ def do_analysis(analysis_path, analysis_tasks, task):
     :return:
     :rtype:
     """
-    all_tasks = ["absa","dem8","purchase"]
     if task == "all":
         tasks = all_tasks
     else:

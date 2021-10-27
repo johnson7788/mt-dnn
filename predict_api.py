@@ -608,6 +608,7 @@ class TorchMTDNNModel(object):
                 #不带aspect关键字的位置信息，自己查找位置
                 content, title, aspect = one_data[0], one_data[1], one_data[2]
                 title_content = title + content
+                aspect = aspect.lower()
                 title_content = title_content.lower()
                 iter = re.finditer(re.escape(aspect), title_content)
                 for m in iter:
@@ -716,6 +717,7 @@ class TorchMTDNNModel(object):
             else:
                 # purchase是把title作为prefix
                 truncate_data, locations = self.purchase_text_truncate(data)
+                assert len(truncate_data) == len(data), "数据查找关键字后的条数变得不匹配，请校对"
             test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         else:
             test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
