@@ -623,14 +623,7 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
             logger.info(f'初步处理{task_name}数据完成, 保存规范后的数据到{train_fout}, {dev_fout}, {test_fout}')
             print()
             data_ids[task_name] = (train_data_id, dev_data_id, test_data_id)
-    if 'all' in datasets:
-        return data_ids
-    elif len(datasets) == 1:
-        # 传入了一个任务名字参数，那么只返回一个即可
-        return data_ids[dataset]
-    else:
-        # 多个任务的，情况，返回所有
-        return data_ids
+    return data_ids
 
 if __name__ == '__main__':
     args = parse_args()
