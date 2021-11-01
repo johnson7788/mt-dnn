@@ -21,21 +21,32 @@ mpl.rcParams['font.family'] = ['SimHei']
 mpl.rcParams['axes.unicode_minus'] = False
 all_tasks = ["absa", "dem8", "purchase","brand","nersentiment","pinpainer"]
 
+#每个任务的配置信息
+task_configs = {
+    "absa": {
+        "export_column": ['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'],
+    },
+    "dem8":{
+        "export_column": ['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'],
+    },
+    "purchase":{
+        "export_column": ['text','title','keyword','start','end','label','md5','wrong_num','id']
+    }
+
+}
 
 def got_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
-    parser.add_argument("-d","--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
-    parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有，或者单独的task')
-    parser.add_argument("-e","--epoch", type=int, default=5, help='训练多少个epoch')
-    parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/1027", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
-
+    subprasers = parser.add_subparsers(dest='command')
+    parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行训练或者过滤预测错误的筛选，默认所有，或者单独的task')
+    parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/1027", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果，或者分析保存预测错误的样本的文件夹，pkl格式")
+    train_params = subprasers.add_parser('train', help='训练模型并过滤badcase')
+    train_params.add_argument("-d","--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
+    train_params.add_argument("-e","--epoch", type=int, default=5, help='训练多少个epoch')
     #分析badcase的参数
-    parser.add_argument("-a","--do_analysis", action="store_true", help='分析badcase')
-    parser.add_argument("-p","--analysis_path", type=str, default="wrong_sample/1027", help="分析保存预测错误的样本的文件夹，pkl格式")
-    parser.add_argument("-s","--analysis_tasks", type=str, default="all,accuracy,samplenum,badnum,totalbad,wrongnum,export,golden_class_num,class_wrong_num", help="分析保存预测错误的样本的文件夹，pkl格式")
-    parser.add_argument("-pd","--plot_save_dir", type=str, default="./plots", help="保存绘图结果到某个目录")
-
+    analysis_params = subprasers.add_parser('analysis', help='分析badcase')
+    analysis_params.add_argument("-s","--analysis_tasks", type=str, default="all,accuracy,samplenum,badnum,totalbad,wrongnum,export,golden_class_num,class_wrong_num", help="分析保存预测错误的样本的文件夹，pkl格式")
+    analysis_params.add_argument("-pd","--plot_save_dir", type=str, default="./plots", help="保存绘图结果到某个目录")
     args = parser.parse_args()
     return args
 def train_and_filter(seed, task ,wrong_path, epoch=5):
@@ -150,25 +161,27 @@ def do_analysis(analysis_path, analysis_tasks, task):
         #样本训练集，开发集，测试集数量绘制
         if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
             analysis_sample_num(seeds_result, one_task)
-    if "badnum" in analysis_tasks or 'all' in analysis_tasks:
-        # 只画出每次seed的错误的样本数量
-        analysis_bad_sample_num(seeds_result)
-    if "totalbad" in analysis_tasks or 'all' in analysis_tasks:
-        # 分析总的错误的样本，重复出错的和只出错一次的
-        total_bad_sample_num(seeds_result)
-    if "wrongnum" in analysis_tasks or 'all' in analysis_tasks:
-        # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
-        total_bad_sample_bar(seeds_result)
-    if "export" in analysis_tasks or 'all' in analysis_tasks:
-        export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result)
-    # 分析样本中每个类别的真实数量
-    if "golden_class_num" in analysis_tasks or 'all' in analysis_tasks:
-        analysis_every_class_num(seeds_result)
-    if "class_wrong_num" in analysis_tasks or 'all' in analysis_tasks:
-        # 每个任务的每个类别的正确率分析, 每个label的准确率
-        analysis_every_class_wrong(seeds_result)
+        if "badnum" in analysis_tasks or 'all' in analysis_tasks:
+            # 只画出每次seed的错误的样本数量
+            analysis_bad_sample_num(seeds_result, one_task)
+        if "totalbad" in analysis_tasks or 'all' in analysis_tasks:
+            # 分析总的错误的样本，重复出错的和只出错一次的
+            total_bad_sample_num(seeds_result, one_task)
+        if "wrongnum" in analysis_tasks or 'all' in analysis_tasks:
+            # 所有的预测样本错误的的次数的直方图，预测错误1次的有x个，预测错误2次的有y个，预测错误3次的有z个，....
+            total_bad_sample_bar(seeds_result, one_task)
+        if "export" in analysis_tasks or 'all' in analysis_tasks:
+            # 导出的excel的名字
+            column = task_configs[one_task]["export_column"]
+            export_wrong_data(pkl_data, seeds_result, one_task, columns=column)
+        # 分析样本中每个类别的真实数量
+        if "golden_class_num" in analysis_tasks or 'all' in analysis_tasks:
+            analysis_every_class_num(seeds_result, one_task)
+        if "class_wrong_num" in analysis_tasks or 'all' in analysis_tasks:
+            # 每个任务的每个类别的正确率分析, 每个label的准确率
+            analysis_every_class_wrong(seeds_result, one_task)
     print(f"保存绘图结果到: {plot_save_dir}")
-def analysis_every_class_num(seeds_result):
+def analysis_every_class_num(seeds_result, task_name):
     def collect_value(sd_res,task):
         # 所有的标签，一共有多少个标签
         class_names = sd_res[task]['train_gold_labels'] + sd_res[task]['dev_gold_labels'] + sd_res[task]['test_gold_labels']
@@ -180,16 +193,10 @@ def analysis_every_class_num(seeds_result):
         class_percent = [num/total_num for num in class_num]
         return class_name, class_num, class_percent
     sd_res = seeds_result[0]
-    class_name, class_num, class_percent = collect_value(sd_res,"absa")
-    simple_bar_plot(x=class_name, y=class_num, title="absa任务的每个类别的gold-label数量", xname="标签名称", yname="gold-label数量")
-    simple_bar_plot(x=class_name, y=class_percent, title="absa任务的每个类别的gold-label数量占比", xname="标签名称", yname="gold-label占比")
-    class_name, class_num, class_percent = collect_value(sd_res,"dem8")
-    simple_bar_plot(x=class_name, y=class_num, title="dem8任务的每个类别的gold-label数量", xname="标签名称", yname="gold-label数量")
-    simple_bar_plot(x=class_name, y=class_percent, title="dem8任务的每个类别的gold-label数量占比", xname="标签名称", yname="gold-label占比")
-    class_name, class_num, class_percent = collect_value(sd_res,"purchase")
-    simple_bar_plot(x=class_name, y=class_num, title="purchase任务的每个类别的gold-label数量", xname="标签名称", yname="gold-label数量")
-    simple_bar_plot(x=class_name, y=class_percent, title="purchase任务的每个类别的gold-label数量占比", xname="标签名称", yname="gold-label占比")
-def analysis_every_class_wrong(seeds_result):
+    class_name, class_num, class_percent = collect_value(sd_res,task_name)
+    simple_bar_plot(x=class_name, y=class_num, title=f"任务{task_name}的每个类别的gold-label数量", xname="标签名称", yname="gold-label数量")
+    simple_bar_plot(x=class_name, y=class_percent, title=f"任务{task_name}的每个类别的gold-label数量占比", xname="标签名称", yname="gold-label占比")
+def analysis_every_class_wrong(seeds_result, task_name):
     """
     分析每个任务的每个类别的正确率
     :param seeds_result:
@@ -239,13 +246,12 @@ def analysis_every_class_wrong(seeds_result):
     for sd_res in seeds_result[:2]:
         # 只画前3个图
         seed = sd_res['seed']
-        for task in ["absa","dem8","purchase"]:
-            class_name, class_num, wrong_num, wrong_percent = collect_value(sd_res,task)
-            # yvalue = list(zip(class_num, wrong_num, wrong_percent))
-            simple_bar_plot(x=class_name, y=class_num, title=f"seed数为{seed}的{task}任务预测总数量", xname="类别的名称", yname="类别总样本数")
-            simple_bar_plot(x=class_name, y=wrong_num, title=f"seed数为{seed}的{task}任务预测错误数量", xname="类别的名称", yname="类别错误数量")
-            simple_bar_plot(x=class_name, y=wrong_percent, title=f"seed数为{seed}的{task}任务预测错误百分比", xname="类别的名称", yname="类别错误百分比")
-def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_result):
+        class_name, class_num, wrong_num, wrong_percent = collect_value(sd_res,task_name)
+        # yvalue = list(zip(class_num, wrong_num, wrong_percent))
+        simple_bar_plot(x=class_name, y=class_num, title=f"seed数为{seed}的{task_name}任务预测总数量", xname="类别的名称", yname="类别总样本数")
+        simple_bar_plot(x=class_name, y=wrong_num, title=f"seed数为{seed}的{task_name}任务预测错误数量", xname="类别的名称", yname="类别错误数量")
+        simple_bar_plot(x=class_name, y=wrong_percent, title=f"seed数为{seed}的{task_name}任务预测错误百分比", xname="类别的名称", yname="类别错误百分比")
+def export_wrong_data(src_data, seeds_result, task_name, columns):
     """
     导出预测错误的样本
     :return:
@@ -267,35 +273,19 @@ def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_res
                         sd_res[task]['train_data_id'])
         merge_id = t_id + d_id + s_id
         return merge_id
-    absa_counter = collections.Counter()
-    dem8_counter = collections.Counter()
-    purchase_counter = collections.Counter()
+    task_counter = collections.Counter()
     for sd_res in seeds_result:
-        absa_bad_id = collect_value(sd_res, "absa")
-        absa_counter.update(absa_bad_id)
-        dem8_bad_id = collect_value(sd_res, "dem8")
-        dem8_counter.update(dem8_bad_id)
-        purchase_bad_id = collect_value(sd_res, "purchase")
-        purchase_counter.update(purchase_bad_id)
+        bad_id = collect_value(sd_res, task_name)
+        task_counter.update(bad_id)
     #按错误的次数排序id
-    sorted_absa = sorted(absa_counter.items(), key=lambda x: x[1],reverse=True)
-    sorted_dem8 = sorted(dem8_counter.items(), key=lambda x: x[1],reverse=True)
-    sorted_purchase = sorted(purchase_counter.items(), key=lambda x: x[1],reverse=True)
+    sorted_absa = sorted(task_counter.items(), key=lambda x: x[1],reverse=True)
     #索引原文，并导入到excel
-    with open(absa_src_data, "rb") as f:
-        absa_data = pickle.load(f)
-    with open(dem8_src_data, "rb") as f:
-        dem8_data = pickle.load(f)
-    with open(purchase_src_data, "rb") as f:
-        purchase_data = pickle.load(f)
+    with open(src_data, "rb") as f:
+        data_content = pickle.load(f)
     #把数据变成字典的索引，那样，方便查找
-    absa_data_dict = {idx:i for idx, i in enumerate(absa_data)}
-    dem8_data_dict = {idx:i for idx, i in enumerate(dem8_data)}
-    purchase_data_dict = {idx:i for idx, i in enumerate(purchase_data)}
+    data_dict = {idx:i for idx, i in enumerate(data_content)}
     # 保存的excel的名称
-    absa_save_excel = "absa_wrong.xlsx"
-    dem8_save_excel = "dem8_wrong.xlsx"
-    purchase_save_excel = "purchase_wrong.xlsx"
+    save_excel = f"{task_name}_wrong.xlsx"
     def saved_data(sorted_data, saved_excel, src_data, columns):
         col_data = []
         for i in sorted_data:
@@ -309,10 +299,8 @@ def export_wrong_data(absa_src_data, dem8_src_data, purchase_src_data, seeds_res
         df = pd.DataFrame(col_data, columns=columns)
         df.to_excel(saved_excel)
     # label是真实的标签
-    saved_data(sorted_data=sorted_absa, saved_excel=absa_save_excel, src_data=absa_data_dict,  columns=['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'])
-    saved_data(sorted_data=sorted_dem8, saved_excel=dem8_save_excel, src_data=dem8_data_dict, columns=['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'])
-    saved_data(sorted_data=sorted_purchase, saved_excel=purchase_save_excel, src_data=purchase_data_dict,columns=['text','title','keyword','start','end','label','md5','wrong_num','id'])
-    print(f"保存预测错误文件到{absa_save_excel}, {dem8_save_excel}, {purchase_save_excel}")
+    saved_data(sorted_data=sorted_absa, saved_excel=save_excel, src_data=data_dict,  columns=columns)
+    print(f"保存预测错误文件到{save_excel}")
 def simple_bar_plot(x, y, title, xname, yname):
     """
     普通的柱状图
@@ -336,7 +324,7 @@ def simple_bar_plot(x, y, title, xname, yname):
     plt.ylabel(yname)
     plt.savefig(os.path.join(plot_save_dir, f"{title}.png"), dpi=300)
     plt.show()
-def total_bad_sample_bar(seeds_result):
+def total_bad_sample_bar(seeds_result, task_name):
     """
     统计几次seed中预测错误的样本的重复次数
     :param seeds_result:
@@ -357,42 +345,22 @@ def total_bad_sample_bar(seeds_result):
         s_id = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'],sd_res[task]['train_data_id'])
         merge_id = t_id + d_id + s_id
         return merge_id
-    absa_counter = collections.Counter()
-    dem8_counter = collections.Counter()
-    purchase_counter = collections.Counter()
+    task_counter = collections.Counter()
     for sd_res in seeds_result:
-        absa_bad_id = collect_value(sd_res,"absa")
-        absa_counter.update(absa_bad_id)
-        dem8_bad_id = collect_value(sd_res, "dem8")
-        dem8_counter.update(dem8_bad_id)
-        purchase_bad_id = collect_value(sd_res, "purchase")
-        purchase_counter.update(purchase_bad_id)
+        bad_id = collect_value(sd_res,task_name)
+        task_counter.update(bad_id)
     #统计和绘图
     # 错误次数出现1次的样本
-    absa_wrong_count = collections.Counter([count for id, count in absa_counter.items()])
-    dem8_wrong_count = collections.Counter([count for id, count in dem8_counter.items()])
-    purchase_wrong_count = collections.Counter([count for id, count in purchase_counter.items()])
-    x_absa = list(absa_wrong_count.keys())
-    y_absa = list(absa_wrong_count.values())
-    x_dem8 = list(dem8_wrong_count.keys())
-    y_dem8 = list(dem8_wrong_count.values())
-    x_purchase = list(purchase_wrong_count.keys())
-    y_purchase = list(purchase_wrong_count.values())
+    wrong_count = collections.Counter([count for id, count in task_counter.items()])
+    x_task = list(wrong_count.keys())
+    y_task = list(wrong_count.values())
     #错误次数大于1次的样本数量
-    absa_more1 = [v for k,v in absa_wrong_count.items() if k >1]
-    dem8_more1 = [v for k,v in dem8_wrong_count.items() if k >1]
-    purchase_more1 = [v for k,v in purchase_wrong_count.items() if k >1]
+    task_more1 = [v for k,v in wrong_count.items() if k >1]
     x1 = ["1次", "n次"]
-    y_absa1 = [sum(y_absa)-sum(absa_more1),sum(absa_more1)]
-    y_dem81 = [sum(y_dem8)-sum(dem8_more1),sum(dem8_more1)]
-    y_purchase1 = [sum(y_purchase)-sum(purchase_more1),sum(purchase_more1)]
-    simple_bar_plot(x1, y_absa1, title="情感任务absa的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
-    simple_bar_plot(x1, y_dem81, title="属性判断dem8的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
-    simple_bar_plot(x1, y_purchase1, title="购买意向purchase的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
-    simple_bar_plot(x_absa, y_absa, title="情感任务absa的预测错误的样本的频次", xname="错误频次", yname="样本数量")
-    simple_bar_plot(x_dem8, y_dem8, title="属性判断dem8的预测错误的样本的频次", xname="错误频次", yname="样本数量")
-    simple_bar_plot(x_purchase, y_purchase, title="购买意向purchase的预测错误的样本的频次", xname="错误频次", yname="样本数量")
-def total_bad_sample_num(seeds_result):
+    y_task1 = [sum(y_task)-sum(task_more1),sum(task_more1)]
+    simple_bar_plot(x1, y_task1, title=f"任务{task_name}的预测错误的样本的频次1次和多次 ", xname="错误频次", yname="样本数量")
+    simple_bar_plot(x_task, y_task, title=f"任务{task_name}的预测错误的样本的频次", xname="错误频次", yname="样本数量")
+def total_bad_sample_num(seeds_result, task_name):
     """
     几次seed预测后，总的预测错误的样本数量，总的出错数量，一个是重复出错的样本的数量，一个是几次seed后只有一次的出错的数量，会去重
     :param seeds_result:
@@ -401,9 +369,7 @@ def total_bad_sample_num(seeds_result):
     :rtype:
     """
     plot_x = ["1"]  #没用到
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
+    plot_acc_data = []
     def compaire(predict,gold,sample_id):
         diff_id = []
         for p,g,s in zip(predict,gold,sample_id):
@@ -417,32 +383,18 @@ def total_bad_sample_num(seeds_result):
         s_id = compaire(sd_res[task]['test_predict_labels'], sd_res[task]['test_gold_labels'],sd_res[task]['train_data_id'])
         merge_id = t_id + d_id + s_id
         return merge_id
-    absa_counter = collections.Counter()
-    dem8_counter = collections.Counter()
-    purchase_counter = collections.Counter()
+    task_counter = collections.Counter()
     for sd_res in seeds_result:
-        absa_bad_id = collect_value(sd_res,"absa")
-        absa_counter.update(absa_bad_id)
-        dem8_bad_id = collect_value(sd_res, "dem8")
-        dem8_counter.update(dem8_bad_id)
-        purchase_bad_id = collect_value(sd_res, "purchase")
-        purchase_counter.update(purchase_bad_id)
+        bad_id = collect_value(sd_res,task_name)
+        task_counter.update(bad_id)
     #统计和绘图
     # 错误次数出现1次的样本
-    a1 = {x: count for x, count in absa_counter.items() if count == 1}
-    d1 = {x: count for x, count in dem8_counter.items() if count == 1}
-    p1 = {x: count for x, count in purchase_counter.items() if count == 1}
+    a1 = {x: count for x, count in task_counter.items() if count == 1}
     #预测错误多于一次的
-    ma = len(absa_counter) - len(a1)
-    md = len(dem8_counter) - len(d1)
-    mp = len(purchase_counter) - len(p1)
-    absa_plot_acc_data.append([len(absa_counter),len(a1),ma])
-    dem8_plot_acc_data.append([len(dem8_counter), len(d1), md])
-    purchase_plot_acc_data.append([len(purchase_counter), len(p1), mp])
-    plot_bar(title="所有seed情感任务absa的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=absa_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
-    plot_bar(title="所有seed属性判断dem8的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=dem8_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
-    plot_bar(title="所有seed购买意向purchase的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=purchase_plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
-def analysis_bad_sample_num(seeds_result):
+    ma = len(task_counter) - len(a1)
+    plot_acc_data.append([len(task_counter),len(a1),ma])
+    plot_bar(title=f"所有seed任务{task_name}的汇总预测错误",yname="样本数",seeds=plot_x, yvalue=plot_acc_data,xname="汇总预测错误",bar_group_labels=["总错误数","错误一次数","错误n次数"])
+def analysis_bad_sample_num(seeds_result, task_name):
     """
     读取每个seed种子的结果，绘制错误的样本的数量
     :param seeds_result:
@@ -456,9 +408,7 @@ def analysis_bad_sample_num(seeds_result):
         diff_num = len(a) - len(same_sample)
         return diff_num, len(same_sample)
     plot_seeds = []
-    absa_plot_acc_data = []
-    dem8_plot_acc_data = []
-    purchase_plot_acc_data = []
+    plot_acc_data = []
     def collect_value(sd_res,task):
         a, _ = compaire(sd_res[task]['train_predict_labels'], sd_res[task]['train_gold_labels'])
         b, _ = compaire(sd_res[task]['dev_predict_labels'], sd_res[task]['dev_gold_labels'])
@@ -467,17 +417,9 @@ def analysis_bad_sample_num(seeds_result):
     for sd_res in seeds_result:
         seed = sd_res['seed']
         plot_seeds.append(seed)
-        a,b,c = collect_value(sd_res,"absa")
-        absa_plot_acc_data.append([a,b,c])
-        # dem8的准确率收集
-        a, b, c = collect_value(sd_res, "dem8")
-        dem8_plot_acc_data.append([a, b, c])
-        # purchase
-        a, b, c = collect_value(sd_res, "purchase")
-        purchase_plot_acc_data.append([a, b, c])
-    plot_bar(title="情感任务absa的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=absa_plot_acc_data)
-    plot_bar(title="属性判断dem8的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=dem8_plot_acc_data)
-    plot_bar(title="购买意向purchase的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=purchase_plot_acc_data)
+        a,b,c = collect_value(sd_res,task_name)
+        plot_acc_data.append([a,b,c])
+    plot_bar(title=f"任务{task_name}的预测错误样本数",yname="样本数",seeds=plot_seeds, yvalue=plot_acc_data)
 def analysis_sample_num(seeds_result, task_name):
     """
     读取每个seed种子的结果，绘制样本数量，样本数量基本是一样的
@@ -525,7 +467,7 @@ def analysis_acc(seeds_result, task_name):
     plot_acc_data = average_acc(acc_data)
     # 999代表平均值
     plot_seeds.append(999)
-    plot_bar(title=f"任务{task_name}的准确率",yname="准确率",seeds=plot_seeds, plot_acc_data=plot_acc_data, ylimit=[0, 100])
+    plot_bar(title=f"任务{task_name}的准确率",yname="准确率",seeds=plot_seeds, yvalue=plot_acc_data, ylimit=[0, 100])
     print(f"任务{task_name}的准确率: {plot_acc_data}")
 def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_group_labels=["训练集","开发集","测试集"]):
     """
@@ -578,9 +520,11 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_
 if __name__ == '__main__':
     args = got_args()
     plot_save_dir = args.plot_save_dir
-    if args.do_train_filter:
+    if args.command == "train":
         train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path, epoch=args.epoch)
-    else:
+    elif args.command == "analysis":
         #分析
         plot_tasks = args.analysis_tasks.split(',')
-        do_analysis(analysis_path=args.analysis_path, analysis_tasks=plot_tasks, task=args.task)
+        do_analysis(analysis_path=args.wrong_path, analysis_tasks=plot_tasks, task=args.task)
+    else:
+        print(f"不支持的任务")
