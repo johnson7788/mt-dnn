@@ -27,6 +27,7 @@ def got_args():
     parser.add_argument("-t","--do_train_filter", action="store_true", help='训练模型并过滤badcase')
     parser.add_argument("-d","--seed", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15",help='随机数种子,用逗号隔开，有几个种子，就运行几次')
     parser.add_argument("-k","--task", type=str, default="all", help='对哪个任务进行预测错误的筛选，默认所有，或者单独的task')
+    parser.add_argument("-e","--epoch", type=int, default=5, help='训练多少个epoch')
     parser.add_argument("-w","--wrong_path", type=str, default="wrong_sample/1027", help="预测错误的样本默认保存到哪个文件夹下，错误的样本保存成pkl格式，文件名字用随机数种子命名,包含所有任务的结果")
 
     #分析badcase的参数
@@ -37,7 +38,7 @@ def got_args():
 
     args = parser.parse_args()
     return args
-def train_and_filter(seed, task ,wrong_path):
+def train_and_filter(seed, task ,wrong_path, epoch=5):
     #解析参数
     seeds = seed.split(",")
     # 数字格式的随机数种子
@@ -62,7 +63,7 @@ def train_and_filter(seed, task ,wrong_path):
         # 随机数种子不同，产生的训练评估和测试的样本也不同，这里返回它们的id
         data_ids = do_prepro(root='data_my', use_pkl=True, seed=sd, dataset=task)
         # 第二步，源数据变token
-        code = os.system(command="/home/wac/johnson/anaconda3/envs/py38/bin/python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --do_lower_case")
+        code = os.system(command=f"/home/wac/johnson/anaconda3/envs/py38/bin/python prepro_std.py --model bert-base-chinese --root_dir data_my/canonical_data --task_def experiments/myexample/my_task_def.yml --dataset {task} --do_lower_case")
         assert code == 0, "数据处理不成功，请检查"
         # 第三步，训练模型
         model_output_dir = f"checkpoints/mtdnn_seed_{sd}"
@@ -76,7 +77,7 @@ def train_and_filter(seed, task ,wrong_path):
             'log_file': f"--log_file {model_output_dir}/log.log ",
             'answer_opt': "--answer_opt 1 ",  # 可选0,1，代表是否使用SANClassifier分类头还是普通的线性分类头,1表示使用SANClassifier, 0是普通线性映射
             'optimizer': "--optimizer adamax ",
-            'epochs': "--epochs 5",
+            'epochs': f"--epochs {epoch}",
             'train_datasets': f"--train_datasets {train_datasets}",
             'test_datasets': f"--test_datasets {train_datasets}",
             'grad_clipping': "--grad_clipping 0 ",
@@ -578,7 +579,7 @@ if __name__ == '__main__':
     args = got_args()
     plot_save_dir = args.plot_save_dir
     if args.do_train_filter:
-        train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path)
+        train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path, epoch=args.epoch)
     else:
         #分析
         plot_tasks = args.analysis_tasks.split(',')

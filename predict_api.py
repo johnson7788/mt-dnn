@@ -455,8 +455,10 @@ class TorchMTDNNModel(object):
         # task_id的获取
         for task_name in self.task_names:
             train_datasets = self.config['train_datasets']
-            task_id = train_datasets.index(task_name)
-            self.tasks_info[task_name]['task_id'] = task_id
+            # 有的任务没训练，就没在train_datasets中
+            if task_name in train_datasets:
+                task_id = train_datasets.index(task_name)
+                self.tasks_info[task_name]['task_id'] = task_id
         self.config["cuda"] = self.cuda
         ## temp fix
         self.config['fp16'] = False
