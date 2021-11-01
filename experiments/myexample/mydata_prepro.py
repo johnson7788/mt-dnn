@@ -270,33 +270,31 @@ def truncate_relation(data, max_seq_len=150):
     print(f"超过和未超过最大长度{max_seq_len}的统计结果{length_counter}, 超过最大长度后将动态根据2个实体所在的位置对句子进行截断")
     return truncate_data
 
-def save_source_data(task_name="all"):
+def save_source_data(task_name):
     sys.path.append('/Users/admin/git/TextBrewer/huazhuang/utils')
     from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment, get_all_pinpainer
     #保存三个数据集的原始数据，方便以后不从label-studio读取
-    if task_name == "absa" or task_name == "all":
+    if task_name == "absa":
         absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
         pickle.dump(absa_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "dem8" or task_name == "all":
+    if task_name == "dem8":
         dem8_data = get_demision8(split=False,
                                  dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
                                                '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
         pickle.dump(dem8_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "purchase" or task_name == "all":
+    if task_name == "purchase":
         purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=2500)
         pickle.dump(purchase_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "brand" or task_name == "all":
+    if task_name == "brand":
         brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
         pickle.dump(brand_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "nersentiment" or task_name == "all":
+    if task_name == "nersentiment":
         nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True)
         pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "pinpainer" or task_name == "all":
+    if task_name == "pinpainer":
         pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True)
         pickle.dump(pinpainer_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "all":
-        return absa_data, dem8_data, purchase_data, brand_data, nersentiment_data, pinpainer_data
-    elif task_name == "absa":
+    if task_name == "absa":
         return absa_data
     elif task_name == "dem8":
         return dem8_data
@@ -628,6 +626,10 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
 if __name__ == '__main__':
     args = parse_args()
     if args.save_source_pkl:
-        save_source_data()
+        if args.dataset == "all":
+            for task in data_configs.keys():
+                save_source_data(task_name=task)
+        else:
+            save_source_data(task_name=args.dataset)
     else:
         do_prepro(root=args.root_dir, use_pkl=args.use_pkl, seed=args.seed, dataset=args.dataset)
