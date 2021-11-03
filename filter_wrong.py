@@ -37,7 +37,7 @@ task_configs = {
     },
     "pinpainer": {
         "data_type": "dict", # 如果data_type是dict，那么就不需要column的name了，否则就需要
-        "metric": ["precision", "recall", "f1-score"],  # 绘图的指标
+        "metric": ["ner_metric"],  # 绘图的指标
     }
 
 }
@@ -168,12 +168,8 @@ def do_analysis(analysis_path, analysis_tasks, task):
                 if plot_metric == "accuracy":
                     # 准确率的绘制
                     analysis_acc(seeds_result, one_task)
-                elif plot_metric == "precision":
-                    pass
-                elif plot_metric == "recall":
-                    pass
-                elif plot_metric == "f1-score":
-                    pass
+                elif plot_metric == "ner_metric":
+                    analysis_ner(seeds_result, one_task)
         #样本训练集，开发集，测试集数量绘制
         if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
             analysis_sample_num(seeds_result, one_task)
@@ -465,6 +461,61 @@ def analysis_sample_num(seeds_result, task_name):
         test_acc = len(sd_res[task_name]['test_data_id'])
         acc_data.append([train_acc,dev_acc,test_acc])
     plot_bar(title=f"任务的{task_name}总样本数",yname="样本数",seeds=plot_seeds, yvalue=acc_data)
+def analysis_ner(seeds_result, task_name):
+    """
+    读取每个seed种子的结果，绘图准确率
+    :param seeds_result:
+    :type seeds_result:
+    :param task_name: 一个任务的名字
+    :return:
+    :rtype:
+    """
+    def get_metric(SeqEvaloutput):
+        """
+              precision    recall  f1-score   support
+
+                 PIN     0.9040    0.9495    0.9262     27661
+
+           micro avg     0.9040    0.9495    0.9262     27661
+           macro avg     0.9040    0.9495    0.9262     27661
+        weighted avg     0.9040    0.9495    0.9262     27661
+        :param SeqEvaloutput:
+        :type SeqEvaloutput:
+        :return: 返回最后一行的precision    recall  f1-score
+        :rtype:
+        """
+        split_words = SeqEvaloutput.split()
+        precision = split_words[-4]
+        recall = split_words[-3]
+        f1_score = split_words[-2]
+        return float(precision), float(recall), float(f1_score)
+    plot_seeds = []
+    plot_data = collections.defaultdict(list)
+    for sd_res in seeds_result:
+        seed = sd_res['seed']
+        plot_seeds.append(seed)
+        train_seq = sd_res[task_name]['train_metrics']['SeqEval']
+        dev_seq = sd_res[task_name]['dev_metrics']['SeqEval']
+        test_seq = sd_res[task_name]['test_metrics']['SeqEval']
+        train_precision, train_recall, train_f1_score = get_metric(train_seq)
+        dev_precision, dev_recall, dev_f1_score = get_metric(dev_seq)
+        test_precision, test_recall, test_f1_score = get_metric(test_seq)
+        plot_data["精确率"].append([train_precision,dev_precision,test_precision])
+        plot_data["召回率"].append([train_recall,dev_recall,test_recall])
+        plot_data["f1-score"].append([train_f1_score,dev_f1_score,test_f1_score])
+    def do_average(acc_data):
+        # 加一个平均值，在末尾
+        avg_train = sum([i[0] for i in acc_data])/len(acc_data)
+        avg_dev = sum([i[1] for i in acc_data])/len(acc_data)
+        avg_test = sum([i[2] for i in acc_data])/len(acc_data)
+        acc_data.append([avg_train,avg_dev,avg_test])
+        return acc_data
+    # 999代表平均值
+    plot_seeds.append(999)
+    for name, value_data in plot_data.items():
+        plot_avg_data = do_average(value_data)
+        print(f"任务{task_name}的{name}: {plot_avg_data}")
+        plot_bar(title=f"任务{task_name}的{name}",yname=f"{name}",seeds=plot_seeds, yvalue=plot_avg_data, ylimit=[0, 1])
 def analysis_acc(seeds_result, task_name):
     """
     读取每个seed种子的结果，绘图准确率
