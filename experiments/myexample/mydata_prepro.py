@@ -505,7 +505,7 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
         data = new_data
     return data
 
-def split_save_data(data, random_seed, train_rate=0.85, dev_rate=0.1, test_rate=0.05, todict=True, only_addidx=False):
+def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1, todict=True, only_addidx=False):
     """
     :param data:
     :type data:

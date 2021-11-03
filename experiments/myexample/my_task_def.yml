@@ -8,6 +8,9 @@ absa:
     - 积极
   metric_meta:
     - ACC
+    - F1MAC
+    - F1MIC
+    - CMAT
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
@@ -26,6 +29,9 @@ dem8:
     - 否
   metric_meta:
   - ACC
+  - F1
+  - CMAT
+  - MCC
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
@@ -52,6 +58,9 @@ purchase:
     - 其它
   metric_meta:
   - ACC
+  - F1MAC
+  - F1MIC
+  - CMAT
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
@@ -70,6 +79,8 @@ brand:
     - 否
   metric_meta:
   - ACC
+  - F1
+  - CMAT
   loss: CeCriterion
   kd_loss: MseCriterion
   adv_loss: SymKlCriterion
