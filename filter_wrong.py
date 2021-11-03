@@ -25,12 +25,19 @@ all_tasks = ["absa", "dem8", "purchase","brand","nersentiment","pinpainer"]
 task_configs = {
     "absa": {
         "export_column": ['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'],
+        "metric": ["accuracy"], # 绘图的指标
     },
     "dem8":{
         "export_column": ['text','keyword','start','end','label','channel','wordtype','md5','wrong_num','id'],
+        "metric": ["accuracy"], # 绘图的指标
     },
     "purchase":{
-        "export_column": ['text','title','keyword','start','end','label','md5','wrong_num','id']
+        "export_column": ['text','title','keyword','start','end','label','md5','wrong_num','id'],
+        "metric": ["accuracy"], # 绘图的指标
+    },
+    "pinpainer": {
+        "data_type": "dict", # 如果data_type是dict，那么就不需要column的name了，否则就需要
+        "metric": ["precision", "recall", "f1-score"],  # 绘图的指标
     }
 
 }
@@ -156,8 +163,17 @@ def do_analysis(analysis_path, analysis_tasks, task):
         pkl_data = os.path.join(analysis_path, "source_data", f"{one_task}.pkl")
         assert os.path.exists(pkl_data), f"{one_task}的原始数据文件不存在，请检查"
         if "accuracy" in analysis_tasks or 'all' in analysis_tasks:
-            # 准确率的绘制
-            analysis_acc(seeds_result, one_task)
+            plot_metrics = task_configs[one_task].get("metric")
+            for plot_metric in plot_metrics:
+                if plot_metric == "accuracy":
+                    # 准确率的绘制
+                    analysis_acc(seeds_result, one_task)
+                elif plot_metric == "precision":
+                    pass
+                elif plot_metric == "recall":
+                    pass
+                elif plot_metric == "f1-score":
+                    pass
         #样本训练集，开发集，测试集数量绘制
         if "samplenum" in analysis_tasks or 'all' in analysis_tasks:
             analysis_sample_num(seeds_result, one_task)
@@ -172,7 +188,7 @@ def do_analysis(analysis_path, analysis_tasks, task):
             total_bad_sample_bar(seeds_result, one_task)
         if "export" in analysis_tasks or 'all' in analysis_tasks:
             # 导出的excel的名字
-            column = task_configs[one_task]["export_column"]
+            column = task_configs[one_task].get("export_column")
             export_wrong_data(pkl_data, seeds_result, one_task, columns=column)
         # 分析样本中每个类别的真实数量
         if "golden_class_num" in analysis_tasks or 'all' in analysis_tasks:
@@ -254,6 +270,7 @@ def analysis_every_class_wrong(seeds_result, task_name):
 def export_wrong_data(src_data, seeds_result, task_name, columns):
     """
     导出预测错误的样本
+    :param columns:
     :return:
     :rtype:
     """
@@ -288,15 +305,25 @@ def export_wrong_data(src_data, seeds_result, task_name, columns):
     save_excel = f"{task_name}_wrong.xlsx"
     def saved_data(sorted_data, saved_excel, src_data, columns):
         col_data = []
+        data_type = "list"
+        if isinstance(src_data[0], dict):
+            data_type = "dict"
         for i in sorted_data:
             id, wrong_num = i
             data = src_data[id]
-            data = list(data)
-            data.append(wrong_num)
-            data.append(str(id))
+            if data_type == "list":
+                data = list(data)
+                data.append(wrong_num)
+                data.append(str(id))
+            else:
+                data["wrong_num"] = wrong_num
+                data["id"] = str(id)
             col_data.append(data)
             # id也加上
-        df = pd.DataFrame(col_data, columns=columns)
+        if data_type == "list":
+            df = pd.DataFrame(col_data, columns=columns)
+        else:
+            df = pd.DataFrame(col_data)
         df.to_excel(saved_excel)
     # label是真实的标签
     saved_data(sorted_data=sorted_absa, saved_excel=save_excel, src_data=data_dict,  columns=columns)
@@ -519,11 +546,11 @@ def plot_bar(title,yname,seeds, yvalue, ylimit=None,xname="随机数种子",bar_
 
 if __name__ == '__main__':
     args = got_args()
-    plot_save_dir = args.plot_save_dir
     if args.command == "train":
         train_and_filter(seed=args.seed, task=args.task ,wrong_path=args.wrong_path, epoch=args.epoch)
     elif args.command == "analysis":
         #分析
+        plot_save_dir = args.plot_save_dir
         plot_tasks = args.analysis_tasks.split(',')
         do_analysis(analysis_path=args.wrong_path, analysis_tasks=plot_tasks, task=args.task)
     else:
