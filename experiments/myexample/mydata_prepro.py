@@ -72,7 +72,7 @@ def truncate(input_text, max_len, trun_post='post'):
     else:
         return input_text
 
-def do_truncate_data(data, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
+def do_truncate_data(task, data, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
     """
     对数据做truncate
     :param data:针对不同类型的数据进行不同的截断
@@ -101,50 +101,54 @@ def do_truncate_data(data, left_max_seq_len=60, aspect_max_seq_len=10, right_max
     locations = []
     #保留原始数据，一同返回
     original_data = []
-    for idx, one_data in enumerate(data):
-        if len(one_data) == 2:
-            #不带aspect关键字的位置信息，自己查找位置
-            content, aspect = one_data
-            iter = re.finditer(aspect, content)
-            for m in iter:
-                aspect_start, aspect_end = m.span()
-                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+    if task == "purchase":
+        assert isinstance(data[0], dict), "支持的数据格式是字典格式"
+        raise NotImplementedError
+    else:
+        for idx, one_data in enumerate(data):
+            if len(one_data) == 2:
+                #不带aspect关键字的位置信息，自己查找位置
+                content, aspect = one_data
+                iter = re.finditer(aspect, content)
+                for m in iter:
+                    aspect_start, aspect_end = m.span()
+                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    contents.append((new_content, aspect))
+                    locations.append((aspect_start,aspect_end))
+                    original_data.append(one_data)
+            elif len(one_data) == 3:
+                #不带aspect关键字的位置信息，带label
+                content, aspect, label = one_data
+                iter = re.finditer(aspect, content)
+                for m in iter:
+                    aspect_start, aspect_end = m.span()
+                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                    contents.append((new_content, aspect, label))
+                    locations.append((aspect_start,aspect_end))
+                    original_data.append(one_data)
+            elif len(one_data) == 4:
+                # 不带label时，长度是4，
+                content, aspect, aspect_start, aspect_end = one_data
+                new_content = aspect_truncate(content, aspect, aspect_start,aspect_end)
                 contents.append((new_content, aspect))
-                locations.append((aspect_start,aspect_end))
+                locations.append((aspect_start, aspect_end))
                 original_data.append(one_data)
-        elif len(one_data) == 3:
-            #不带aspect关键字的位置信息，带label
-            content, aspect, label = one_data
-            iter = re.finditer(aspect, content)
-            for m in iter:
-                aspect_start, aspect_end = m.span()
+            elif len(one_data) == 5:
+                content, aspect, aspect_start, aspect_end, label = one_data
                 new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
                 contents.append((new_content, aspect, label))
-                locations.append((aspect_start,aspect_end))
+                locations.append((aspect_start, aspect_end))
                 original_data.append(one_data)
-        elif len(one_data) == 4:
-            # 不带label时，长度是4，
-            content, aspect, aspect_start, aspect_end = one_data
-            new_content = aspect_truncate(content, aspect, aspect_start,aspect_end)
-            contents.append((new_content, aspect))
-            locations.append((aspect_start, aspect_end))
-            original_data.append(one_data)
-        elif len(one_data) == 5:
-            content, aspect, aspect_start, aspect_end, label = one_data
-            new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
-            contents.append((new_content, aspect, label))
-            locations.append((aspect_start, aspect_end))
-            original_data.append(one_data)
-        elif len(one_data) == 7:
-            content, aspect, aspect_start, aspect_end, label, channel,wordtype = one_data
-            new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
-            contents.append((new_content, aspect, label))
-            locations.append((aspect_start, aspect_end))
-            original_data.append(one_data)
-        else:
-            print(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5，跳过")
-            continue
-            # raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
+            elif len(one_data) == 7:
+                content, aspect, aspect_start, aspect_end, label, channel,wordtype = one_data
+                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
+                contents.append((new_content, aspect, label))
+                locations.append((aspect_start, aspect_end))
+                original_data.append(one_data)
+            else:
+                print(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5，跳过")
+                continue
+                # raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
     assert len(contents) == len(locations) == len(original_data)
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
@@ -283,13 +287,13 @@ def save_source_data(task_name):
                                                '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
         pickle.dump(dem8_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "purchase":
-        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=4000)
+        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=4000, return_dict=True)
         pickle.dump(purchase_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "brand":
         brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
         pickle.dump(brand_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "nersentiment":
-        nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True)
+        nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
         pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "pinpainer":
         pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True)
@@ -449,11 +453,24 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
         # 把title+text拼接在一起
         all_data = []
         for d in a_data:
-            title_len = len(d[1])
-            text = d[1] + d[0]
-            start_idx = d[3] + title_len
-            end_idx = d[4] + title_len
-            one_data = [text, d[2],start_idx,end_idx,d[5]]
+            if isinstance(d, list):
+                title_len = len(d[1])
+                text = d[1] + d[0]
+                start_idx = d[3] + title_len
+                end_idx = d[4] + title_len
+                one_data = [text, d[2],start_idx,end_idx,d[5]]
+            else:
+                # 如果是字典格式的
+                if d["title"] != "":
+                    title_len = len(d["title"])
+                    text = d["title"] + d["text"]
+                    start_idx = d["start_idx"] + title_len
+                    end_idx = d["end_idx"] + title_len
+                    d["start_idx"] = start_idx
+                    d["end_idx"] = end_idx
+                    d["title"] = ""
+                    d["text"] = text
+                one_data = d
             all_data.append(one_data)
     elif task_name == 'brand':
         if use_pickle:
@@ -489,7 +506,7 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
         if task_name == 'brand':
             data = truncate_relation(data=all_data)
         else:
-            original_data, data, locations = do_truncate_data(all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
+            original_data, data, locations = do_truncate_data(task_name,all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
     else:
         data = all_data
     if task_name == 'dem8':

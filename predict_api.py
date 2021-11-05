@@ -720,9 +720,9 @@ class TorchMTDNNModel(object):
                 # purchase是把title作为prefix
                 truncate_data, locations = self.purchase_text_truncate(data)
                 assert len(truncate_data) == len(data), "数据查找关键字后的条数变得不匹配，请校对"
-            test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+            test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, max_seq_length=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         else:
-            test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, maxlen=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+            test_data_set = SinglePredictDataset(data, tokenizer=self.tokenizer, max_seq_length=self.max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
@@ -1139,13 +1139,14 @@ class TorchMTDNNModel(object):
                         one_result = [keyword, label, '0.5', start, end]
         :rtype:
         """
-        label2name = {
-            "B-PIN": "品牌",
-            "I-PIN": "品牌",
-        }
         results = []
-        text_data = [{"premise":d[0],"label":[0] * len(d[0])} for d in data]
-        test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, maxlen=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
+        if isinstance(data[0], str):
+            # 数据中每个都是一个text格式的话
+            text_data = [{"premise":d,"label":[0] * len(d)} for d in data]
+        else:
+            # 元祖格式，每个元祖包含2条数据，用于label-studio
+            text_data = [{"premise":d[0],"label":[0] * len(d)} for d in data]
+        test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, max_seq_length=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         with torch.no_grad():
             # test_metrics eg: acc结果，准确率结果
@@ -1164,12 +1165,15 @@ class TorchMTDNNModel(object):
         id2tok = self.tasks_info[task_name]['id2tok']
         predict_labels = [[id2tok[tokp] for tokp in p] for p in predictions ]
         # 对预测的每个token的label进行筛选
-        print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        # print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
         data_tokens = []
         tok2txt_locations = []
         # text 转变成tokens
         for idx, sample in enumerate(data):
-            premise = sample[0]
+            if isinstance(data[0], str):
+                premise = sample
+            else:
+                premise = sample[0]
             tokens = []
             token2text_loc = {}
             tokens_loc = 0
@@ -1182,12 +1186,16 @@ class TorchMTDNNModel(object):
                     # token的位置映射到原txt的位置
                     token2text_loc[tokens_loc] = idx
                 tokens_loc = tokens_loc + len(subwords)
-            if len(premise) > max_seq_len - 2:
-                tokens = tokens[:max_seq_len - 2]
+            # 确保和正确的tokenizer之前的长度保持一致
+            tokens = tokens[:max_seq_len - 2]
+            #所有tokens
             data_tokens.append(tokens)
-            tok2txt_locations.append(token2text_loc)
+            tok2txt_locations.append(token2text_loc)   #token和原文本长度的对应关系
         for plabel, tokens, t2tloc, sdata in zip(predict_labels, data_tokens, tok2txt_locations, data):
-            text = sdata[0]
+            if isinstance(data[0], str):
+                text = sdata
+            else:
+                text = sdata[0]
             # 去掉第一个和最后一个token的预测结果，即去掉CLS和SEP
             token_label = plabel[1:-1]
             # 不相等也是有可能的，因为进行了截断或填充
@@ -1203,6 +1211,7 @@ class TorchMTDNNModel(object):
             text_words_start_end = []
             # 对应原txt之后的品牌词的内容，这里肯定不会出现UNK了
             text_pinpai_words = []
+            assert len(token_label) == len(tokens), f"tokenizer后的tokens长度和预测后的label的长度不一致，请检查{len(token_label)}, {len(tokens)}:{tokens}"
             for idx in range(len(token_label)):
                 # 单词的位置应该是tokenize后的结果，
                 word = tokens[idx]
@@ -1233,12 +1242,13 @@ class TorchMTDNNModel(object):
                         # 说明一个品牌词结束了，改保存了
                         p_words.append(pinpai_words)
                         token_start = pinpai_words_idx[0]
-                        token_end = pinpai_words_idx[-1]+1
+                        token_end = pinpai_words_idx[-1]
                         text_start = t2tloc[token_start]
                         text_end = t2tloc[token_end]
                         p_words_start_end.append([token_start,token_end])
                         text_words_start_end.append([text_start,text_end])
-                        text_pinpai_word = text[text_start:text_end]
+                        #因为截取的是片段，所以左开右闭，需要+1
+                        text_pinpai_word = text[text_start:text_end+1]
                         text_pinpai_words.append(text_pinpai_word)
                         # 重置
                         pinpai_words = ""
@@ -1247,12 +1257,13 @@ class TorchMTDNNModel(object):
                 # 末尾可能的是品牌词的情况
                 p_words.append(pinpai_words)
                 token_start = pinpai_words_idx[0]
-                token_end = pinpai_words_idx[-1] + 1
+                token_end = pinpai_words_idx[-1]
                 text_start = t2tloc[token_start]
                 text_end = t2tloc[token_end]
                 p_words_start_end.append([token_start, token_end])
                 text_words_start_end.append([text_start, text_end])
-                text_pinpai_word = text[text_start:text_end]
+                # 因为截取的是片段，所以左开右闭，需要+1
+                text_pinpai_word = text[text_start:text_end+1]
                 text_pinpai_words.append(text_pinpai_word)
             # 根据p_words_start_end（识别到的品牌词的token位置信息） 和t2tloc（token到text的位置映射）映射品牌词到原text中，修改p_words_start_end, 找出对应原文的正确的位置信息
             # 对每条数据的预测结果进行整理，返回label-studio需要的格式
@@ -1583,12 +1594,28 @@ def brand_predict():
     return jsonify(results)
 
 @app.route("/api/label_studio_pinpai_predict", methods=['POST'])
-def pinpainer_predict():
+def pinpainer_labelstudio_predict():
     """
     用于label studio的品牌的预测, aspects词是可能是多个，是用逗号隔开
     Args:
         test_data: 需要预测的数据，是一个文字列表, [(content,aspects),...,]
-        如果传过来的数据没有索引，那么需要自己去查找索引 [(content,aspects),...,]
+    Returns: 返回格式是[one_result,one_result2,one_result3]
+     嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                    one_result = [keyword, label, '0.5', start, end]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    results = model.predict_pinpainer(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/pinpai_predict", methods=['POST'])
+def pinpainer_predict():
+    """
+    用于label studio的品牌的预测, 文本内容是用逗号隔开
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [content,...,]
     Returns: 返回格式是[one_result,one_result2,one_result3]
      嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
                     one_result = [keyword, label, '0.5', start, end]

@@ -91,7 +91,7 @@ brand:
     - test
   task_type: Classification
 nersentiment:
-  description: 序列分类的情感分析
+  description: 序列分类的情感分析, 电商的
   data_format: Sequence
   dropout_p: 0.3
   enable_san: False
