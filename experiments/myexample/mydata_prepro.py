@@ -32,6 +32,7 @@ data_configs = {
         'DataFormat': DataFormat.PremiseAndOneHypothesis,
         'do_truncate': True,
         'todict': True,
+        'only_addidx': True,
     },
     'brand': {
         'cache_file': "data_my/canonical_data/source_data/brand.pkl",
@@ -72,6 +73,23 @@ def truncate(input_text, max_len, trun_post='post'):
     else:
         return input_text
 
+def aspect_truncate(content,aspect,aspect_start,aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len):
+    """
+    截断函数
+    :param content:句子
+    :param aspect:关键字
+    :param aspect_start:开始位置
+    :param aspect_end:结束位置
+    :return:
+    """
+    text_left = content[:aspect_start]
+    text_right = content[aspect_end:]
+    text_left = truncate(text_left, left_max_seq_len)
+    aspect = truncate(aspect, aspect_max_seq_len)
+    text_right = truncate(text_right, right_max_seq_len, trun_post="pre")
+    new_content = text_left + aspect + text_right
+    return new_content
+
 def do_truncate_data(task, data, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
     """
     对数据做truncate
@@ -80,75 +98,55 @@ def do_truncate_data(task, data, left_max_seq_len=60, aspect_max_seq_len=10, rig
     所以如果一个句子中有多个aspect关键字，那么就会产生多个截断的文本+关键字，组成的列表，会产生多个预测结果
     和locations: [(start_idx,end_idx),...]
     """
-    def aspect_truncate(content,aspect,aspect_start,aspect_end):
-        """
-        截断函数
-        :param content:句子
-        :param aspect:关键字
-        :param aspect_start:开始位置
-        :param aspect_end:结束位置
-        :return:
-        """
-        text_left = content[:aspect_start]
-        text_right = content[aspect_end:]
-        text_left = truncate(text_left, left_max_seq_len)
-        aspect = truncate(aspect, aspect_max_seq_len)
-        text_right = truncate(text_right, right_max_seq_len, trun_post="pre")
-        new_content = text_left + aspect + text_right
-        return new_content
     contents = []
     #保存关键字的索引，[(start_idx, end_idx)...]
     locations = []
     #保留原始数据，一同返回
     original_data = []
-    if task == "purchase":
-        assert isinstance(data[0], dict), "支持的数据格式是字典格式"
-        raise NotImplementedError
-    else:
-        for idx, one_data in enumerate(data):
-            if len(one_data) == 2:
-                #不带aspect关键字的位置信息，自己查找位置
-                content, aspect = one_data
-                iter = re.finditer(aspect, content)
-                for m in iter:
-                    aspect_start, aspect_end = m.span()
-                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
-                    contents.append((new_content, aspect))
-                    locations.append((aspect_start,aspect_end))
-                    original_data.append(one_data)
-            elif len(one_data) == 3:
-                #不带aspect关键字的位置信息，带label
-                content, aspect, label = one_data
-                iter = re.finditer(aspect, content)
-                for m in iter:
-                    aspect_start, aspect_end = m.span()
-                    new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
-                    contents.append((new_content, aspect, label))
-                    locations.append((aspect_start,aspect_end))
-                    original_data.append(one_data)
-            elif len(one_data) == 4:
-                # 不带label时，长度是4，
-                content, aspect, aspect_start, aspect_end = one_data
-                new_content = aspect_truncate(content, aspect, aspect_start,aspect_end)
+    for idx, one_data in enumerate(data):
+        if len(one_data) == 2:
+            #不带aspect关键字的位置信息，自己查找位置
+            content, aspect = one_data
+            iter = re.finditer(aspect, content)
+            for m in iter:
+                aspect_start, aspect_end = m.span()
+                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len)
                 contents.append((new_content, aspect))
-                locations.append((aspect_start, aspect_end))
+                locations.append((aspect_start,aspect_end))
                 original_data.append(one_data)
-            elif len(one_data) == 5:
-                content, aspect, aspect_start, aspect_end, label = one_data
+        elif len(one_data) == 3:
+            #不带aspect关键字的位置信息，带label
+            content, aspect, label = one_data
+            iter = re.finditer(aspect, content)
+            for m in iter:
+                aspect_start, aspect_end = m.span()
                 new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
                 contents.append((new_content, aspect, label))
-                locations.append((aspect_start, aspect_end))
+                locations.append((aspect_start,aspect_end))
                 original_data.append(one_data)
-            elif len(one_data) == 7:
-                content, aspect, aspect_start, aspect_end, label, channel,wordtype = one_data
-                new_content = aspect_truncate(content, aspect, aspect_start, aspect_end)
-                contents.append((new_content, aspect, label))
-                locations.append((aspect_start, aspect_end))
-                original_data.append(one_data)
-            else:
-                print(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5，跳过")
-                continue
-                # raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
+        elif len(one_data) == 4:
+            # 不带label时，长度是4，
+            content, aspect, aspect_start, aspect_end = one_data
+            new_content = aspect_truncate(content, aspect, aspect_start,aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len)
+            contents.append((new_content, aspect))
+            locations.append((aspect_start, aspect_end))
+            original_data.append(one_data)
+        elif len(one_data) == 5:
+            content, aspect, aspect_start, aspect_end, label = one_data
+            new_content = aspect_truncate(content, aspect, aspect_start, aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len)
+            contents.append((new_content, aspect, label))
+            locations.append((aspect_start, aspect_end))
+            original_data.append(one_data)
+        elif len(one_data) == 7:
+            content, aspect, aspect_start, aspect_end, label, channel,wordtype = one_data
+            new_content = aspect_truncate(content, aspect, aspect_start, aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len)
+            contents.append((new_content, aspect, label))
+            locations.append((aspect_start, aspect_end))
+            original_data.append(one_data)
+        else:
+            print(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5，跳过")
+            continue
+            # raise Exception(f"这条数据异常: {one_data},数据长度或者为2, 4，或者为5")
     assert len(contents) == len(locations) == len(original_data)
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
@@ -410,6 +408,66 @@ def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
         all_data.append(one_data)
     return all_data
 
+def do_truncate_purchase(data, do_truncate=True, max_seq_length = 150, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
+    """
+    购买的截断
+    :param data:
+    :type data:
+    :param do_truncate:
+    :type do_truncate:
+    :return:
+    :rtype:
+    """
+    channel_dict = {
+        "redbook":"小红书:",
+        "weibo":"微博:",
+        "tmall":"天猫:",
+        "jd":"京东:",
+        "tiktok":"抖音:",
+    }
+    assert isinstance(data[0], dict), "支持的数据格式是字典格式"
+    new_data = []
+    for d in data:
+        text = d["text"]
+        title = d["title"]
+        channel = d["channel"]
+        label = d["label"]
+        chinese_channel = channel_dict.get(channel)
+        if not chinese_channel:
+            # 如果不存在映射，那么设置chinese_channel等于英文的channel
+            chinese_channel = channel
+        aspect = d["keyword"]
+        # 如果有索引，使用索引，如果没有，获取索引
+        start_idx = d.get('start_idx')
+        end_idx = d.get('end_idx')
+        if title:
+            text = title + text
+            if start_idx and end_idx:
+                # 如果给定了起始位置，那么更新下起始位置
+                start_idx = start_idx + len(title)
+                end_idx = end_idx + len(title)
+        if not start_idx or not end_idx:
+            # 如果每个，那么通过自己查找，只查找一个即可
+            iter = re.finditer(aspect, text)
+            for m in iter:
+                start_idx, end_idx = m.span()
+                break
+            else:
+                # 品牌词找不到，说明有问题
+                start_idx, end_idx = 0, 0
+        #进行截断, 截断后start_idx 和end_idx就不准了
+        new_content = aspect_truncate(text, aspect, start_idx, end_idx,left_max_seq_len,aspect_max_seq_len,right_max_seq_len)
+        # 加上渠道
+        new_content = chinese_channel + new_content
+        # 添加新数据
+        one_data = {
+            "premise": new_content,
+            "hypothesis": aspect,
+            "label": label,
+        }
+        new_data.append(one_data)
+    return new_data
+
 def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60, use_pickle=False, do_truncate=True):
     """
     Aspect Base sentiment analysis
@@ -450,28 +508,8 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
                 a_data = pickle.load(f)
         else:
             a_data = save_source_data(task_name="purchase")
-        # 把title+text拼接在一起
-        all_data = []
-        for d in a_data:
-            if isinstance(d, list):
-                title_len = len(d[1])
-                text = d[1] + d[0]
-                start_idx = d[3] + title_len
-                end_idx = d[4] + title_len
-                one_data = [text, d[2],start_idx,end_idx,d[5]]
-            else:
-                # 如果是字典格式的
-                if d["title"] != "":
-                    title_len = len(d["title"])
-                    text = d["title"] + d["text"]
-                    start_idx = d["start_idx"] + title_len
-                    end_idx = d["end_idx"] + title_len
-                    d["start_idx"] = start_idx
-                    d["end_idx"] = end_idx
-                    d["title"] = ""
-                    d["text"] = text
-                one_data = d
-            all_data.append(one_data)
+        data = do_truncate_purchase(data=a_data, do_truncate=do_truncate)
+        return data
     elif task_name == 'brand':
         if use_pickle:
             assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
