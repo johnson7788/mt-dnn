@@ -399,7 +399,7 @@ class TorchMTDNNModel(object):
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
         # absa 情感分析， dem8是8个维度的判断, purchase 购买意向, brand品牌功效关系判断
-        self.task_names = ['absa', 'dem8', 'purchase','brand','nersentiment', 'pinpainer']
+        self.task_names = ['absa', 'dem8', 'purchase','brand','wholesentiment', 'pinpainer']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度

@@ -90,6 +90,51 @@ brand:
     - dev
     - test
   task_type: Classification
+wholesentiment:
+  description: 具有整体情感的句子判断，4分类
+  data_format: PremiseOnly
+  enable_san: false
+  labels:
+    - 整体积极
+    - 整体消极
+    - 整体中性
+    - 无整体情感
+  metric_meta:
+  - ACC
+  - F1MAC
+  - F1MIC
+  - CMAT
+  loss: CeCriterion
+  kd_loss: MseCriterion
+  adv_loss: SymKlCriterion
+  n_class: 4
+  split_names:
+    - train
+    - dev
+    - test
+  task_type: Classification
+pinpainer:
+  description: 品牌通过ner识别
+  data_format: Sequence
+  dropout_p: 0.3
+  enable_san: False
+  labels:
+  - O
+  - B-PIN
+  - I-PIN
+  - CLS
+  - SEP
+  metric_meta:
+  - SeqEval
+  n_class: 5
+  loss: SeqCeCriterion
+#  kd_loss: MseCriterion
+#  adv_loss: SymKlCriterion   #尚不支持对抗训练
+  split_names:
+  - train
+  - dev
+  - test
+  task_type: SeqenceLabeling
 nersentiment:
   description: 序列分类的情感分析, 电商的
   data_format: Sequence
@@ -108,28 +153,6 @@ nersentiment:
   metric_meta:
   - SeqEval
   n_class: 9
-  loss: SeqCeCriterion
-#  kd_loss: MseCriterion
-#  adv_loss: SymKlCriterion   #尚不支持对抗训练
-  split_names:
-  - train
-  - dev
-  - test
-  task_type: SeqenceLabeling
-pinpainer:
-  description: 品牌通过ner识别
-  data_format: Sequence
-  dropout_p: 0.3
-  enable_san: False
-  labels:
-  - O
-  - B-PIN
-  - I-PIN
-  - CLS
-  - SEP
-  metric_meta:
-  - SeqEval
-  n_class: 5
   loss: SeqCeCriterion
 #  kd_loss: MseCriterion
 #  adv_loss: SymKlCriterion   #尚不支持对抗训练

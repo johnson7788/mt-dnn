@@ -34,19 +34,26 @@ data_configs = {
         'todict': True,
         'only_addidx': True,
     },
+    'wholesentiment': {
+        'cache_file': "data_my/canonical_data/source_data/wholesentiment.pkl",
+        'DataFormat': DataFormat.PremiseOnly,
+        'do_truncate': True,
+        'todict': True,
+        'only_addidx': True,
+    },
     'brand': {
         'cache_file': "data_my/canonical_data/source_data/brand.pkl",
         'DataFormat': DataFormat.RELATION,
         'do_truncate': True,
         'todict': False,
     },
-    'nersentiment': {
-        'cache_file': "data_my/canonical_data/source_data/nersentiment.pkl",
-        'DataFormat': DataFormat.Sequence,
-        'do_truncate': True,
-        'todict': True,
-        'only_addidx': True,
-    },
+    # 'nersentiment': {
+    #     'cache_file': "data_my/canonical_data/source_data/nersentiment.pkl",
+    #     'DataFormat': DataFormat.Sequence,
+    #     'do_truncate': True,
+    #     'todict': True,
+    #     'only_addidx': True,
+    # },
     'pinpainer': {
         'cache_file': "data_my/canonical_data/source_data/pinpainer.pkl",
         'DataFormat': DataFormat.Sequence,
@@ -274,7 +281,7 @@ def truncate_relation(data, max_seq_len=150):
 
 def save_source_data(task_name):
     sys.path.append('/Users/admin/git/label-studio/myexample')
-    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment, get_all_pinpainer
+    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment, get_all_pinpainer, get_all_wholesentiment
     #保存三个数据集的原始数据，方便以后不从label-studio读取
     if task_name == "absa":
         absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
@@ -293,6 +300,9 @@ def save_source_data(task_name):
     if task_name == "nersentiment":
         nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
         pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
+    if task_name == "wholesentiment":
+        wholesentiment_data = get_all_wholesentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
+        pickle.dump(wholesentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "pinpainer":
         pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True)
         pickle.dump(pinpainer_data, open(data_configs[task_name]['cache_file'], "wb"))
@@ -306,6 +316,8 @@ def save_source_data(task_name):
         return purchase_data
     elif task_name == "nersentiment":
         return nersentiment_data
+    elif task_name == "wholesentiment":
+        return wholesentiment_data
     elif task_name == "pinpainer":
         return pinpainer_data
 
@@ -365,6 +377,30 @@ def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 180):
         one_data = {"label": labels, "premise": tokens}
         all_data.append(one_data)
     return all_data
+def do_truncate_wholesentiment(data, max_seq_length = 150, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
+    """
+    整体情感的判断
+    :param data:
+    :type data:
+    :param do_truncate:
+    :type do_truncate:
+    :return:
+    :rtype:
+    """
+    assert isinstance(data[0], dict), "支持的数据格式是字典格式"
+    new_data = []
+    for d in data:
+        text = d["text"]
+        channel = d["channel"]
+        label = d["sentiment_label"]
+        # 添加新数据
+        one_data = {
+            "premise": text,
+            "label": label,
+        }
+        new_data.append(one_data)
+    return new_data
+
 def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
     """
     品牌ner识别的标签
@@ -526,6 +562,16 @@ def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, 
             all_data = save_source_data(task_name="nersentiment")
         # 处理nersentiment数据并返回
         data = do_truncate_nersentiment(data=all_data, do_truncate=do_truncate)
+        return data
+    elif task_name == 'wholesentiment':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = save_source_data(task_name="wholesentiment")
+        # 处理nersentiment数据并返回
+        data = do_truncate_wholesentiment(data=all_data)
         return data
     elif task_name == 'pinpainer':
         if use_pickle:
