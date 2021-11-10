@@ -1154,7 +1154,7 @@ class TorchMTDNNModel(object):
             text_data = [{"premise":d,"label":[0] * len(d)} for d in data]
         else:
             # 元祖格式，每个元祖包含2条数据，用于label-studio
-            text_data = [{"premise":d[0],"label":[0] * len(d)} for d in data]
+            text_data = [{"premise":d[0],"label":[0] * len(d[0])} for d in data]
         test_data_set = SinglePredictDataset(text_data, tokenizer=self.tokenizer, max_seq_length=max_seq_len, task_id=self.tasks_info[task_name]['task_id'], task_def=self.tasks_info[task_name]['task_def'])
         test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,pin_memory=self.cuda)
         with torch.no_grad():
@@ -1292,7 +1292,18 @@ class TorchMTDNNModel(object):
         :return:
         :rtype:
         """
-        truncate_data = [d[:max_seq_len] for d in data]
+        truncate_data = []
+        for idx, d in enumerate(data):
+            if isinstance(d, str):
+                content = d[:max_seq_len]
+            elif isinstance(d, list):
+                # 只取列表的第一个元素
+                content = d[0][:max_seq_len]
+            else:
+                logger.warning(f"不支持的数据格式: {d}")
+                content = "hello world"
+            one = {"uid": idx, "premise": content, "label":"整体积极"}
+            truncate_data.append(one)
         test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len,
                                              task_id=self.tasks_info['wholesentiment']['task_id'],
                                              task_def=self.tasks_info['wholesentiment']['task_def'])
@@ -1431,8 +1442,8 @@ def verify_data(data, task):
             return msg
     elif task == 'wholesentiment':
         for idx, d in enumerate(data):
-            if not isinstance(d, str):
-                msg = f"第{idx}条数据{d}不是string的格式，请检查"
+            if not isinstance(d, list) and not isinstance(d, str):
+                msg = "传入的数据格式不符合要求，必须是包含字符串的列表或嵌套列表"
                 return msg
 
 
