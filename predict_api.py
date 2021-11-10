@@ -13,6 +13,7 @@
 import json
 import os
 import re
+import pandas as pd
 import torch
 from experiments.exp_def import TaskDefs, EncoderModelType
 from torch.utils.data import Dataset, DataLoader, BatchSampler
@@ -609,7 +610,12 @@ class TorchMTDNNModel(object):
             if len(one_data) == 3:
                 #不带aspect关键字的位置信息，自己查找位置
                 content, title, aspect = one_data[0], one_data[1], one_data[2]
-                title_content = title + content
+                if pd.isna(content):
+                    content = "Empty"
+                if pd.isna(title):
+                    title_content = content
+                else:
+                    title_content = str(title) + str(content)
                 aspect = aspect.lower()
                 title_content = title_content.lower()
                 iter = re.finditer(re.escape(aspect), title_content)
@@ -625,6 +631,9 @@ class TorchMTDNNModel(object):
                         keywords_index[idx] += 1
                 else:
                     print(f"注意，未通过关键词匹配到数据{one_data}")
+                    new_content = title_content[:100]
+                    contents.append((new_content, aspect))
+                    locations.append((0, 0))
             elif len(one_data) == 5:
                 content, title, aspect, aspect_start, aspect_end = one_data
                 # 拼接title的内容

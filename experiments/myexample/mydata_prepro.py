@@ -285,7 +285,7 @@ def save_source_data(task_name):
                                                '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
         pickle.dump(dem8_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "purchase":
-        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=4000, return_dict=True)
+        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=-1, return_dict=True)
         pickle.dump(purchase_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "brand":
         brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
