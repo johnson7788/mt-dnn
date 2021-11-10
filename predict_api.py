@@ -1283,6 +1283,39 @@ class TorchMTDNNModel(object):
                 result.append(one_result)
             results.append(result)
         return results
+    def predict_wholesentiment(self, data, max_seq_len=150):
+        """
+        预测整体情感
+        :param data:
+        :type data:
+        :param max_seq_len: 最大序列长度
+        :return:
+        :rtype:
+        """
+        truncate_data = [d[:max_seq_len] for d in data]
+        test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len,
+                                             task_id=self.tasks_info['wholesentiment']['task_id'],
+                                             task_def=self.tasks_info['wholesentiment']['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,
+                               pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+            id2tok = self.tasks_info['wholesentiment']['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        result = list(zip(predict_labels,scores))
+        # 开始索引的位置
+        return result
 
 
 def verify_data(data, task):
@@ -1396,6 +1429,11 @@ def verify_data(data, task):
         else:
             msg = "传入的数据的长度格式不符合要求，要求传入的nest list是2或4的长度"
             return msg
+    elif task == 'wholesentiment':
+        for idx, d in enumerate(data):
+            if not isinstance(d, str):
+                msg = f"第{idx}条数据{d}不是string的格式，请检查"
+                return msg
 
 
 
@@ -1632,6 +1670,25 @@ def pinpainer_predict():
     jsonres = request.get_json()
     test_data = jsonres.get('data', None)
     results = model.predict_pinpainer(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/wholesentiment_predict", methods=['POST'])
+def wholesentiment_predict():
+    """
+    整体情感分类任务
+    Args:
+        接受数据是 [content,...,]
+    Returns: 返回格式是 [(predicted_label, predict_score),...]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    logger.info(f"要进行的任务是整体情感判断")
+    verify_msg = verify_data(test_data, task='wholesentiment')
+    if verify_msg is not None:
+        return jsonify(verify_msg), 210
+    results = model.predict_wholesentiment(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
