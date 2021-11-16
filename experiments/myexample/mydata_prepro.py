@@ -304,7 +304,7 @@ def save_source_data(task_name):
         wholesentiment_data = get_all_wholesentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
         pickle.dump(wholesentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "pinpainer":
-        pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True)
+        pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True,drop_keywords=[])
         pickle.dump(pinpainer_data, open(data_configs[task_name]['cache_file'], "wb"))
     if task_name == "absa":
         return absa_data
