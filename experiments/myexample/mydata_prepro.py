@@ -59,6 +59,7 @@ data_configs = {
         'DataFormat': DataFormat.PremiseAndOneHypothesis,
         'do_truncate': True,
         'todict': True,
+        'only_addidx':True,
         'left_max_seq_len': 20,
         'aspect_max_seq_len': 10,
         'right_max_seq_len': 20,
@@ -308,6 +309,9 @@ def do_truncate_pinpai(data, left_max_seq_len, aspect_max_seq_len, right_max_seq
             new_text = left_text + label_text + right_text
             # 变成是或否的标签
             label_truth_name = labels_dict[label_name]
+            assert label_truth_name, f"label为空: {label_truth_name}"
+            assert new_text, f"new_text为空: {new_text}"
+            assert label_text, f"label_text为空: {label_text}"
             one_data = {"label": label_truth_name, "premise": new_text, 'hypothesis': label_text}
             all_data.append(one_data)
     return all_data
