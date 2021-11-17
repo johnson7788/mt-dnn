@@ -399,7 +399,7 @@ class TorchMTDNNModel(object):
         self.task_deffile = 'experiments/myexample/my_task_def.yml'
         self.task_defs = None  #解析配置文件后的结果
         # absa 情感分析， dem8是8个维度的判断, purchase 购买意向, brand品牌功效关系判断
-        self.task_names = ['absa', 'dem8', 'purchase','brand','wholesentiment', 'pinpainer']
+        self.task_names = ['absa', 'dem8', 'purchase','brand','wholesentiment','pinpai' ,'pinpainer']
         # 保存每个task需要的一些必要的信息
         self.tasks_info = {}
         # 最大序列长度
@@ -551,7 +551,6 @@ class TorchMTDNNModel(object):
             elif len(one_data) == 2 or len(one_data) == 3:
                 #不带aspect关键字的位置信息，自己查找位置
                 content, aspect = one_data[0], one_data[1]
-                print(one_data)
                 iter = re.finditer(re.escape(aspect), content)
                 # 是否真的搜到了关键字
                 added_flag = False
@@ -1333,6 +1332,95 @@ class TorchMTDNNModel(object):
         result = list(zip(predict_labels,scores))
         # 开始索引的位置
         return result
+    def search_text_keyword(self, text, keyword, search_first=False,left_max_seq_len=20, aspect_max_seq_len=10,right_max_seq_len=20):
+        """
+        搜索text中的keyword，然后返回搜索到的位置信息
+        :param text:
+        :type text:
+        :param keyword:
+        :type keyword:
+        :return:
+        :rtype:
+        """
+        contents = []
+        locations = []
+        content = text
+        aspect = keyword
+        iter = re.finditer(re.escape(aspect), content)
+        # 是否真的搜到了关键字
+        added_flag = False
+        for m in iter:
+            aspect_start, aspect_end = m.span()
+            new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end,
+                                               left_max_seq_len=left_max_seq_len,
+                                               aspect_max_seq_len=aspect_max_seq_len,
+                                               right_max_seq_len=right_max_seq_len)
+            contents.append((new_content, aspect))
+            locations.append((aspect_start, aspect_end))
+            added_flag = True
+            if search_first:
+                # 只取第一个关键字的数据
+                break
+        if not added_flag:
+            # 没有搜到任何关键字，那么打印注意信息
+            print(f"在content： {content}中，未搜到aspect:{aspect}, 返回一个00默认值")
+            contents.append((content, aspect))
+            locations.append((0, 0))
+            # 如果没搜到，也给加一个keyword的idx
+        return contents, locations
+    def predict_pinpai(self,data):
+        """
+        预测品牌的二分类
+        :param data: [[text1,[word1,word2],[text2,[word1,word2]]]
+        :type data:
+        :param max_seq_len:
+        :type max_seq_len:
+        :return:
+        :rtype:
+        """
+        #保存了整理之前和整理之后的数据进行映射
+        # 存储所有数据信息
+        corpus = collections.defaultdict(dict)
+        data_index = []
+        truncate_data = []
+        count_idx = 0
+        for idx, d in enumerate(data):
+            content = d[0]
+            keywords = d[1]
+            corpus[idx]["content"] = content
+            corpus[idx]["keywords"] = keywords
+            for key_idx, keyword in enumerate(keywords):
+                contents, locations = self.search_text_keyword(text=content,keyword=keyword)
+                corpus[idx][keyword]["locations"] = locations
+                #收集所有的位置信息
+                for search_idx, text in enumerate(contents):
+                    one = {"uid": count_idx, "premise": text, "hypothesis":keyword, "label":"是"}
+                    count_idx += 1
+                    truncate_data.append(one)
+                    data_index.append([idx, keyword, search_idx])
+        test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len,
+                                             task_id=self.tasks_info['wholesentiment']['task_id'],
+                                             task_def=self.tasks_info['wholesentiment']['task_def'])
+        test_data = DataLoader(test_data_set, batch_size=self.predict_batch_size, collate_fn=self.collater.collate_fn,
+                               pin_memory=self.cuda)
+        with torch.no_grad():
+            # test_metrics eg: acc结果，准确率结果
+            # test_predictions: 预测的结果， scores预测的置信度， golds是我们标注的结果，标注的label， test_ids样本id, 打印metrics
+            predictions = []
+            golds = []
+            scores = []
+            for (batch_info, batch_data) in test_data:
+                batch_info, batch_data = Collater.patch_data(self.device, batch_info, batch_data)
+                score, pred, gold = self.model.predict(batch_info, batch_data)
+                predictions.extend(pred)
+                golds.extend(gold)
+                scores.extend(score)
+            id2tok = self.tasks_info['wholesentiment']['id2tok']
+            predict_labels = [id2tok[p] for p in predictions]
+            print(f"预测结果{predictions}, 预测的标签是 {predict_labels}")
+        result = list(zip(predict_labels, scores))
+        # 开始索引的位置
+        return result
 
 
 def verify_data(data, task):
@@ -1450,6 +1538,11 @@ def verify_data(data, task):
         for idx, d in enumerate(data):
             if not isinstance(d, list) and not isinstance(d, str):
                 msg = "传入的数据格式不符合要求，必须是包含字符串的列表或嵌套列表"
+                return msg
+    elif task == 'pinpai':
+        for idx, d in enumerate(data):
+            if not isinstance(d[1], list) and not isinstance(d[0], str) and d[1]:
+                msg = f"第{idx}条传入的数据格式不符合要求，内容必须是text，keywords必须是列表，keywords列表不能为空"
                 return msg
 
 
@@ -1636,8 +1729,8 @@ def dem8():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
-@app.route("/api/brand_predict", methods=['POST'])
-def brand_predict():
+@app.route("/api/brand_effect_predict", methods=['POST'])
+def brand_effect_predict():
     """
     品牌功效的关系判断
     Args:
@@ -1657,7 +1750,7 @@ def brand_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
-@app.route("/api/label_studio_pinpai_predict", methods=['POST'])
+@app.route("/api/label_studio_pinpainer_predict", methods=['POST'])
 def pinpainer_labelstudio_predict():
     """
     用于label studio的品牌的预测, aspects词是可能是多个，是用逗号隔开
@@ -1674,7 +1767,7 @@ def pinpainer_labelstudio_predict():
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
 
-@app.route("/api/pinpai_predict", methods=['POST'])
+@app.route("/api/pinpainer_predict", methods=['POST'])
 def pinpainer_predict():
     """
     用于label studio的品牌的预测, 文本内容是用逗号隔开
@@ -1706,6 +1799,27 @@ def wholesentiment_predict():
     if verify_msg is not None:
         return jsonify(verify_msg), 210
     results = model.predict_wholesentiment(data=test_data)
+    logger.info(f"收到的数据是:{test_data}")
+    logger.info(f"预测的结果是:{results}")
+    return jsonify(results)
+
+@app.route("/api/pinpai_predict", methods=['POST'])
+def pinpai_predict():
+    """
+    给定句子和可能的品牌词，判断品牌词是否真的是品牌词，二分类，是和否
+    Args:
+        test_data: 需要预测的数据，是一个文字列表, [(content,[word1,word2]),,...,]
+    Returns: 返回格式是[["是"，"否"],["否"],["是"]]
+     嵌套列表 预测的返回的结果，keyword，对应的标签，一个概率值，位置信息
+                    one_result = [keyword, label, '0.5', start, end]
+    """
+    jsonres = request.get_json()
+    test_data = jsonres.get('data', None)
+    logger.info(f"要进行的任务是品牌词判断")
+    verify_msg = verify_data(test_data, task='pinpai')
+    if verify_msg is not None:
+        return jsonify(verify_msg), 210
+    results = model.predict_pinpai(data=test_data)
     logger.info(f"收到的数据是:{test_data}")
     logger.info(f"预测的结果是:{results}")
     return jsonify(results)
