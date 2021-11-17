@@ -113,6 +113,27 @@ wholesentiment:
     - dev
     - test
   task_type: Classification
+pinpai:
+  description: 品牌二分类，给定句子和品牌词，判断品牌词在句子中是否是品牌词
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+    - 是
+    - 否
+  metric_meta:
+  - ACC
+  - F1
+  - CMAT
+  - MCC
+  loss: CeCriterion
+  kd_loss: MseCriterion
+  adv_loss: SymKlCriterion
+  n_class: 2
+  split_names:
+    - train
+    - dev
+    - test
+  task_type: Classification
 pinpainer:
   description: 品牌通过ner识别
   data_format: Sequence
@@ -136,7 +157,7 @@ pinpainer:
   - test
   task_type: SeqenceLabeling
 nersentiment:
-  description: 序列分类的情感分析, 电商的
+  description: 序列的整体情感的情感分析,电商的
   data_format: Sequence
   dropout_p: 0.3
   enable_san: False

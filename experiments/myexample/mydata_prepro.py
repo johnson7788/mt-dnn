@@ -20,12 +20,18 @@ data_configs = {
         'DataFormat': DataFormat.PremiseAndOneHypothesis,
         'do_truncate': True,
         'todict': True,
+        'left_max_seq_len': 60,
+        'aspect_max_seq_len': 10,
+        'right_max_seq_len': 60,
     },
     'dem8': {
         'cache_file': "data_my/canonical_data/source_data/dem8.pkl",
         'DataFormat': DataFormat.PremiseAndOneHypothesis,
         'do_truncate': True,
         'todict': True,
+        'left_max_seq_len': 60,
+        'aspect_max_seq_len': 10,
+        'right_max_seq_len': 60,
     },
     'purchase': {
         'cache_file': "data_my/canonical_data/source_data/purchase.pkl",
@@ -46,6 +52,7 @@ data_configs = {
         'DataFormat': DataFormat.RELATION,
         'do_truncate': True,
         'todict': False,
+        'max_seq_len': 150,
     },
     # 'nersentiment': {
     #     'cache_file': "data_my/canonical_data/source_data/nersentiment.pkl",
@@ -63,6 +70,129 @@ data_configs = {
     },
 }
 
+def load_data(task_name='absa',use_pickle=False, do_truncate=True):
+    """
+    Aspect Base sentiment analysis
+    :param task_name: 是加载absa数据，还是dem8的数据
+    :param do_truncate: 是否做裁剪
+    :return:
+    :rtype:
+    """
+    sys.path.append('/Users/admin/git/label-studio/myexample')
+    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, \
+        get_all_nersentiment, get_all_pinpainer, get_all_wholesentiment
+    if task_name == 'absa':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        # 去除md5的位置，这个暂时不用
+        all_data = [d[:-1] for d in all_data]
+        if do_truncate:
+            original_data, data, locations = do_truncate_data(all_data, data_configs[task_name]['left_max_seq_len'], data_configs[task_name]['aspect_max_seq_len'],
+                                                              data_configs[task_name]['right_max_seq_len'])
+            return data
+        else:
+            return all_data
+    elif task_name == 'dem8':
+        # 注意dirpath_list使用哪些数据进行训练，那么预测时，也是用这样的数据
+        # labels2id = {
+        #     "是": 0,
+        #     "否": 1,
+        # }
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_demision8(split=False,
+                                      dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack',
+                                                    '/opt/lavector/promotion',
+                                                    '/opt/lavector/component', '/opt/lavector/fragrance',
+                                                    '/opt/lavector/dem8_verify', '/opt/lavector/price_service_skin'],
+                                      withmd5=True)
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        # 去除md5的位置，这个暂时不用
+        all_data = [d[:-1] for d in all_data]
+        if do_truncate:
+            original_data, data, locations = do_truncate_data(all_data,data_configs[task_name]['left_max_seq_len'], data_configs[task_name]['aspect_max_seq_len'],
+                                                              data_configs[task_name]['right_max_seq_len'])
+        else:
+            data = all_data
+        new_data = []
+        for dall, d in zip(all_data, data):
+            word_type = dall[6]
+            content = word_type + ':' + d[0]
+            new_one = list(d)
+            new_one[0] = content
+            new_data.append(new_one)
+        data = new_data
+        return data
+    elif task_name == 'purchase':
+        # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                a_data = pickle.load(f)
+        else:
+            a_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,
+                                             withmd5=True, max_label_num=-1, return_dict=True)
+            pickle.dump(a_data, open(data_configs[task_name]['cache_file'], "wb"))
+        data = do_truncate_purchase(data=a_data, do_truncate=do_truncate)
+        return data
+    elif task_name == 'brand':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all_brand(dirpath="/opt/lavector/relation/", split=False, do_save=False, withmd5=True)
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        if do_truncate:
+            all_data = truncate_relation(data=all_data,max_seq_len=data_configs[task_name]['max_seq_len'])
+        return all_data
+    elif task_name == 'nersentiment':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/", split=False, do_save=False,
+                                                     withmd5=True, select_channels=["tmall", "jd"])
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        # 处理nersentiment数据并返回
+        data = do_truncate_nersentiment(data=all_data, do_truncate=do_truncate)
+        return data
+    elif task_name == 'wholesentiment':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all_wholesentiment(dirpath="/opt/lavector/ner_sentiment/", split=False,
+                                                         do_save=False, withmd5=True, select_channels=["tmall", "jd"])
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        # 处理nersentiment数据并返回
+        data = do_truncate_wholesentiment(data=all_data)
+        return data
+    elif task_name == 'pinpainer':
+        if use_pickle:
+            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
+            with open(data_configs[task_name]['cache_file'], 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            all_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/", split=False, do_save=False,
+                                               withmd5=True, drop_keywords=[])
+            pickle.dump(all_data, open(data_configs[task_name]['cache_file'], "wb"))
+        # 处理nersentiment数据并返回
+        data = do_truncate_pinpainer(data=all_data, do_truncate=do_truncate)
+        return data
+    else:
+        print("数据的种类不存在，退出")
+        sys.exit(1)
 def truncate(input_text, max_len, trun_post='post'):
     """
     实施截断数据
@@ -79,7 +209,6 @@ def truncate(input_text, max_len, trun_post='post'):
             return input_text[:max_len]
     else:
         return input_text
-
 def aspect_truncate(content,aspect,aspect_start,aspect_end,left_max_seq_len,aspect_max_seq_len,right_max_seq_len):
     """
     截断函数
@@ -96,8 +225,7 @@ def aspect_truncate(content,aspect,aspect_start,aspect_end,left_max_seq_len,aspe
     text_right = truncate(text_right, right_max_seq_len, trun_post="pre")
     new_content = text_left + aspect + text_right
     return new_content
-
-def do_truncate_data(task, data, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
+def do_truncate_data(data, left_max_seq_len, aspect_max_seq_len, right_max_seq_len):
     """
     对数据做truncate
     :param data:针对不同类型的数据进行不同的截断
@@ -157,8 +285,7 @@ def do_truncate_data(task, data, left_max_seq_len=60, aspect_max_seq_len=10, rig
     assert len(contents) == len(locations) == len(original_data)
     print(f"截断的参数left_max_seq_len: {left_max_seq_len}, aspect_max_seq_len: {aspect_max_seq_len}, right_max_seq_len:{right_max_seq_len}。截断后的数据总量是{len(contents)}")
     return original_data, contents, locations
-
-def truncate_relation(data, max_seq_len=150):
+def truncate_relation(data, max_seq_len):
     """
     只对text的长度进行截取，根据
     :param data: 源数据
@@ -278,49 +405,6 @@ def truncate_relation(data, max_seq_len=150):
         truncate_data.append(one)
     print(f"超过和未超过最大长度{max_seq_len}的统计结果{length_counter}, 超过最大长度后将动态根据2个实体所在的位置对句子进行截断")
     return truncate_data
-
-def save_source_data(task_name):
-    sys.path.append('/Users/admin/git/label-studio/myexample')
-    from convert_label_studio_data import get_all, get_demision8, get_all_purchase, get_all_brand, get_all_nersentiment, get_all_pinpainer, get_all_wholesentiment
-    #保存三个数据集的原始数据，方便以后不从label-studio读取
-    if task_name == "absa":
-        absa_data = get_all(split=False, dirpath=f"/opt/lavector/absa", do_save=False, withmd5=True)
-        pickle.dump(absa_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "dem8":
-        dem8_data = get_demision8(split=False,
-                                 dirpath_list=['/opt/lavector/effect', '/opt/lavector/pack', '/opt/lavector/promotion',
-                                               '/opt/lavector/component', '/opt/lavector/fragrance','/opt/lavector/dem8_verify','/opt/lavector/price_service_skin'],withmd5=True)
-        pickle.dump(dem8_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "purchase":
-        purchase_data = get_all_purchase(dirpath=f"/opt/lavector/purchase", split=False, do_save=False,withmd5=True, max_label_num=-1, return_dict=True)
-        pickle.dump(purchase_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "brand":
-        brand_data = get_all_brand(dirpath="/opt/lavector/relation/",split=False, do_save=False, withmd5=True)
-        pickle.dump(brand_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "nersentiment":
-        nersentiment_data = get_all_nersentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
-        pickle.dump(nersentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "wholesentiment":
-        wholesentiment_data = get_all_wholesentiment(dirpath="/opt/lavector/ner_sentiment/",split=False, do_save=False, withmd5=True, select_channels=["tmall", "jd"])
-        pickle.dump(wholesentiment_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "pinpainer":
-        pinpainer_data = get_all_pinpainer(dirpath="/opt/lavector/pinpainer/",split=False, do_save=False, withmd5=True,drop_keywords=[])
-        pickle.dump(pinpainer_data, open(data_configs[task_name]['cache_file'], "wb"))
-    if task_name == "absa":
-        return absa_data
-    elif task_name == "dem8":
-        return dem8_data
-    elif task_name == "brand":
-        return brand_data
-    elif task_name == "purchase":
-        return purchase_data
-    elif task_name == "nersentiment":
-        return nersentiment_data
-    elif task_name == "wholesentiment":
-        return wholesentiment_data
-    elif task_name == "pinpainer":
-        return pinpainer_data
-
 def do_truncate_nersentiment(data, do_truncate=True, max_seq_length = 180):
     """
     nertsentiment 的数据处理
@@ -400,7 +484,6 @@ def do_truncate_wholesentiment(data, max_seq_length = 150, left_max_seq_len=60, 
         }
         new_data.append(one_data)
     return new_data
-
 def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
     """
     品牌ner识别的标签
@@ -443,7 +526,6 @@ def do_truncate_pinpainer(data, do_truncate=True, max_seq_length = 180):
         one_data = {"label": token_labels, "premise": tokens}
         all_data.append(one_data)
     return all_data
-
 def do_truncate_purchase(data, do_truncate=True, max_seq_length = 150, left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60):
     """
     购买的截断
@@ -503,109 +585,6 @@ def do_truncate_purchase(data, do_truncate=True, max_seq_length = 150, left_max_
         }
         new_data.append(one_data)
     return new_data
-
-def load_absa_dem8(task_name='absa',left_max_seq_len=60, aspect_max_seq_len=10, right_max_seq_len=60, use_pickle=False, do_truncate=True):
-    """
-    Aspect Base sentiment analysis
-    :param task_name: 是加载absa数据，还是dem8的数据
-    :param do_truncate: 是否做裁剪
-    :return:
-    :rtype:
-    """
-    if task_name == 'absa':
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name="absa")
-
-        # 去除md5的位置，这个暂时不用
-        all_data = [d[:-1] for d in all_data]
-    elif task_name == 'dem8':
-        # 注意dirpath_list使用哪些数据进行训练，那么预测时，也是用这样的数据
-        # labels2id = {
-        #     "是": 0,
-        #     "否": 1,
-        # }
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name="dem8")
-        # 去除md5的位置，这个暂时不用
-        all_data = [d[:-1] for d in all_data]
-    elif task_name == 'purchase':
-        # 返回数据格式[(text, title, keyword, start_idx, end_idx, label),...]
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                a_data = pickle.load(f)
-        else:
-            a_data = save_source_data(task_name="purchase")
-        data = do_truncate_purchase(data=a_data, do_truncate=do_truncate)
-        return data
-    elif task_name == 'brand':
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name="brand")
-    elif task_name == 'nersentiment':
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name="nersentiment")
-        # 处理nersentiment数据并返回
-        data = do_truncate_nersentiment(data=all_data, do_truncate=do_truncate)
-        return data
-    elif task_name == 'wholesentiment':
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name="wholesentiment")
-        # 处理nersentiment数据并返回
-        data = do_truncate_wholesentiment(data=all_data)
-        return data
-    elif task_name == 'pinpainer':
-        if use_pickle:
-            assert os.path.exists(data_configs[task_name]['cache_file']), "源数据的pickle文件不存在，请检查"
-            with open(data_configs[task_name]['cache_file'], 'rb') as f:
-                all_data = pickle.load(f)
-        else:
-            all_data = save_source_data(task_name)
-        # 处理nersentiment数据并返回
-        data = do_truncate_pinpainer(data=all_data, do_truncate=do_truncate)
-        return data
-    else:
-        print("数据的种类不存在，退出")
-        sys.exit(1)
-    if do_truncate:
-        if task_name == 'brand':
-            data = truncate_relation(data=all_data)
-        else:
-            original_data, data, locations = do_truncate_data(task_name,all_data,left_max_seq_len, aspect_max_seq_len, right_max_seq_len)
-    else:
-        data = all_data
-    if task_name == 'dem8':
-        #处理完成的数据加前缀
-        # 加上前缀，给每条数据
-        new_data = []
-        for dall, d in zip(all_data, data):
-            word_type = dall[6]
-            content = word_type + ':' + d[0]
-            new_one = list(d)
-            new_one[0] = content
-            new_data.append(new_one)
-        data = new_data
-    return data
-
 def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0.1, todict=True, only_addidx=False):
     """
     :param data:
@@ -666,7 +645,6 @@ def split_save_data(data, random_seed, train_rate=0.8, dev_rate=0.1, test_rate=0
     print(f"训练集数量{len(train_data)}, 开发集数量{len(dev_data)}, 测试集数量{len(test_data)}")
     return train_data, dev_data, test_data, train_data_id, dev_data_id, test_data_id
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--seed', type=int, default=13)
@@ -702,7 +680,7 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
     data_ids = {}
     datasets = dataset.split(',')
     for task_name, data_cf in data_configs.items():
-        if all in datasets or task_name in datasets :
+        if 'all' in datasets or task_name in datasets :
             print(f"开始处理任务{task_name}")
             ##############处理数据##############
             data_format = data_cf['DataFormat']
@@ -710,7 +688,7 @@ def do_prepro(root, use_pkl, seed, dataset='all'):
             todict = data_cf['todict']
             only_addidx = data_cf.get('only_addidx')
             #保存成tsv文件
-            data = load_absa_dem8(task_name=task_name, use_pickle=use_pkl, do_truncate=do_truncate)
+            data = load_data(task_name=task_name, use_pickle=use_pkl, do_truncate=do_truncate)
             train_data, dev_data, test_data, train_data_id, dev_data_id, test_data_id = split_save_data(data=data,random_seed=seed, todict=todict,only_addidx=only_addidx)
             #保存文件
             train_fout = os.path.join(canonical_data_root, f'{task_name}_train.tsv')
@@ -729,8 +707,8 @@ if __name__ == '__main__':
     if args.save_source_pkl:
         if args.dataset == "all":
             for task in data_configs.keys():
-                save_source_data(task_name=task)
+                load_data(task_name=task, use_pickle=False)
         else:
-            save_source_data(task_name=args.dataset)
+            load_data(task_name=args.dataset, use_pickle=False)
     else:
         do_prepro(root=args.root_dir, use_pkl=args.use_pkl, seed=args.seed, dataset=args.dataset)
