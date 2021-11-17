@@ -424,6 +424,7 @@ class TorchMTDNNModel(object):
             "fragrance": "香味:",
             "pack": "包装:",
             "skin": "肤感:",
+            "skin_feel": "肤感:",
             "promotion": "促销:",
             "service": "服务:",
             "price": "价格:",
@@ -552,6 +553,8 @@ class TorchMTDNNModel(object):
                 content, aspect = one_data[0], one_data[1]
                 print(one_data)
                 iter = re.finditer(re.escape(aspect), content)
+                # 是否真的搜到了关键字
+                added_flag = False
                 for m in iter:
                     aspect_start, aspect_end = m.span()
                     new_content = self.aspect_truncate(content, aspect, aspect_start, aspect_end, left_max_seq_len=self.left_max_seq_len, aspect_max_seq_len=self.aspect_max_seq_len, right_max_seq_len=self.right_max_seq_len)
@@ -560,16 +563,19 @@ class TorchMTDNNModel(object):
                         new_content = prefix + new_content
                     contents.append((new_content, aspect))
                     locations.append((aspect_start,aspect_end))
+                    added_flag = True
                     if search_first:
                         #只取第一个关键字的数据
                         break
                     else:
                         keywords_index[idx] += 1
-                else:
+                if not added_flag:
                     # 没有搜到任何关键字，那么打印注意信息
                     print(f"在content： {content}中，未搜到aspect:{aspect}, 返回一个00默认值")
                     contents.append((content, aspect))
                     locations.append((0, 0))
+                    # 如果没搜到，也给加一个keyword的idx
+                    keywords_index[idx] += 1
             elif len(one_data) == 4:
                 # 不带label时，长度是4，
                 content, aspect, aspect_start, aspect_end = one_data
