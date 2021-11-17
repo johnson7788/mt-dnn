@@ -1389,6 +1389,8 @@ class TorchMTDNNModel(object):
             keywords = d[1]
             corpus[idx]["content"] = content
             corpus[idx]["keywords"] = keywords
+            #设置空字典
+            corpus[idx][keyword] = {}
             for key_idx, keyword in enumerate(keywords):
                 contents, locations = self.search_text_keyword(text=content,keyword=keyword)
                 corpus[idx][keyword]["locations"] = locations
@@ -1398,6 +1400,8 @@ class TorchMTDNNModel(object):
                     count_idx += 1
                     truncate_data.append(one)
                     data_index.append([idx, keyword, search_idx])
+                    # 索引
+                    corpus[idx][keyword][search_idx] = one
         test_data_set = SinglePredictDataset(truncate_data, tokenizer=self.tokenizer, maxlen=self.max_seq_len,
                                              task_id=self.tasks_info['wholesentiment']['task_id'],
                                              task_def=self.tasks_info['wholesentiment']['task_def'])
